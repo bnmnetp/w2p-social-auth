@@ -2,7 +2,7 @@ from json import loads, dumps
 
 db.define_table('plugin_social_auth_user',
                 Field('provider', 'string', notnull=True, writable=False),
-                Field('uid', 'string', notnull=True, writable=False, length=255),
+                Field('oauth_uid', 'string', notnull=True, writable=False, length=255),
                 Field('extra_data', 'text', writable=False, requires=IS_JSON),
                 Field('user', 'reference auth_user', writable=False, notnull=True))
 

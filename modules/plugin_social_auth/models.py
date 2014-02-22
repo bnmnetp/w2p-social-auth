@@ -42,7 +42,7 @@ class UserSocialAuth(W2PMixin, UserMixin):
             self.row = row
             self.id = row.id
             self.provider = self.row.provider
-            self.uid = self.row.uid
+            self.uid = self.row.oauth_uid
             self.extra_data = row.extra_data
             self.user = User(current.plugin_social_auth.auth.table_user()[self.row.user])
 
@@ -149,7 +149,7 @@ class UserSocialAuth(W2PMixin, UserMixin):
         db = cls.db()
         table = cls.table()
         row = db((table.provider == provider) &
-                (table.uid == uid)).select().first()
+                (table.oauth_uid == uid)).select().first()
         if row:
             return cls(row)
 
@@ -165,7 +165,7 @@ class UserSocialAuth(W2PMixin, UserMixin):
         """Create a UserSocialAuth instance for given user"""
         if not isinstance(uid, six.string_types):
             uid = str(uid)
-        user_id = cls.table().insert(user=user.id, uid=uid, provider=provider)
+        user_id = cls.table().insert(user=user.id, oauth_uid=uid, provider=provider)
         if user_id:
             return cls(cls.table()[user_id])
 
