@@ -32,5 +32,6 @@ current.plugin_social_auth = Storage()
 current.plugin_social_auth.session = session
 current.plugin_social_auth.auth = auth
 current.plugin_social_auth.db = db
+current.plugin_social_auth.T = T
 current.plugin_social_auth.plugin = _plugins.social_auth
 

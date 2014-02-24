@@ -1,11 +1,12 @@
 from social.strategies.utils import get_strategy
 from social.utils import setting_name
+from social.backends.utils import load_backends
 from models import User
 from functools import wraps
 from gluon.html import *
 from gluon.http import HTTP, redirect
 from gluon.globals import current
-from gluon.tools import Auth
+from gluon.tools import Auth, addrow
 
 
 DEFAULT = lambda: None
@@ -13,10 +14,60 @@ class SocialAuth(Auth):
     def __init__(self, environment):
         Auth.__init__(self, environment, db=None)
 
+    def login_form(self):
+        settings = self.settings
+        T = current.plugin_social_auth.T
+
+        form = FORM(
+            _action=URL('plugin_social_auth', 'auth_')
+        )
+
+        backends = load_backends(current.plugin_social_auth.plugin.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)
+
+        select = SELECT(_name='backend')
+        for backend in backends:
+            select.append(OPTION(backend, _value=backend))
+        form.append(select)
+        form.append(INPUT(_type='hidden', _name='next',_value=self.get_vars_next()))
+        form.append(INPUT(_value=T(self.messages.login_button), _type='submit'))
+
+        if settings.remember_me_form:
+            ## adds a new input checkbox "remember me for longer"
+            if settings.formstyle != 'bootstrap':
+                addrow(form, XML("&nbsp;"),
+                       DIV(XML("&nbsp;"),
+                           INPUT(_type='checkbox',
+                                 _class='checkbox',
+                                 _id="auth_user_remember",
+                                     _name="remember",
+                                 ),
+                           XML("&nbsp;&nbsp;"),
+                           LABEL(
+                           self.messages.label_remember_me,
+                           _for="auth_user_remember",
+                           )), "",
+                       settings.formstyle,
+                       'auth_user_remember__row')
+            elif settings.formstyle == 'bootstrap':
+                addrow(form,
+                       "",
+                       LABEL(
+                           INPUT(_type='checkbox',
+                                 _id="auth_user_remember",
+                                 _name="remember"),
+                           self.messages.label_remember_me,
+                           _class="checkbox"),
+                       "",
+                       settings.formstyle,
+                       'auth_user_remember__row')
+
+        return form
+
     def social_login(self, next=DEFAULT):
         self.navbar = lambda **x: ''
 
-        return current.response.render('plugin_social_auth/login.html')
+        return self.login_form()
+        # return current.response.render('plugin_social_auth/login.html')
 
     def __call__(self):
         request = self.environment.request
@@ -64,5 +115,10 @@ def login_user(user):
     auth = current.plugin_social_auth.auth
     session = current.plugin_social_auth.session
     auth.login_user(user)
+    session.auth.expiration = \
+        current.request.vars.get('remember', False) and \
+        auth.settings.long_expiration or \
+        auth.settings.expiration
+    session.auth.remember = 'remember' in current.request.vars
     auth.log_event(auth.messages['login_log'], user)
     session.flash = auth.messages.logged_in
