@@ -59,3 +59,10 @@ def get_current_user():
     user = current.plugin_social_auth.auth.user
     if user:
         return User(user)
+
+def login_user(user):
+    auth = current.plugin_social_auth.auth
+    session = current.plugin_social_auth.session
+    auth.login_user(user)
+    auth.log_event(auth.messages['login_log'], user)
+    session.flash = auth.messages.logged_in

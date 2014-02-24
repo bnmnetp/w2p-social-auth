@@ -1,4 +1,4 @@
-from plugin_social_auth.utils import strategy, get_current_user
+from plugin_social_auth.utils import strategy, get_current_user, login_user
 
 @strategy(URL('plugin_social_auth', 'complete'))
 def auth_():
@@ -14,7 +14,7 @@ def complete():
     from social.actions import do_complete
     try:
         return do_complete(current.strategy,
-                           login=lambda strat, user: auth.login_user(user.row),
+                           login=lambda strat, user: login_user(user.row),
                            user=get_current_user())
     except Exception as e:
         #FIXME: For some reason I cannot create except only for SocialAuthBaseException or subclasses.
