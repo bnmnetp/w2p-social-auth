@@ -17,7 +17,13 @@ def complete():
                            login=lambda strat, user: auth.login_user(user.row),
                            user=get_current_user())
     except Exception as e:
-        session.flash = e.message
-        redirect(session.next)
+        #FIXME: For some reason I cannot create except only for SocialAuthBaseException or subclasses.
+        # Those exception classes are not being resolved. Also instanceof() is not working.
+        # Ideally I want to catch only SocialAuth Exceptions.
+        if isinstance(e, HTTP):
+            raise
+        else:
+            session.flash = e.message
+            redirect(session.next)
 
 
