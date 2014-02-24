@@ -12,6 +12,12 @@ def auth_():
 @strategy(URL('plugin_social_auth', 'complete'))
 def complete():
     from social.actions import do_complete
-    return do_complete(current.strategy,
-                       login=lambda strat, user: auth.login_user(user.row),
-                       user=get_current_user())
+    try:
+        return do_complete(current.strategy,
+                           login=lambda strat, user: auth.login_user(user.row),
+                           user=get_current_user())
+    except Exception as e:
+        session.flash = e.message
+        redirect(session.next)
+
+
