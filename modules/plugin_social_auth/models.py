@@ -44,7 +44,7 @@ class UserSocialAuth(W2PMixin, UserMixin):
             self.provider = self.row.provider
             self.uid = self.row.oauth_uid
             self.extra_data = row.extra_data
-            self.user = User(current.plugin_social_auth.auth.table_user()[self.row.user])
+            self.user = User(current.plugin_social_auth.auth.table_user()[self.row.oauth_user])
 
     def _save(self):
         if self.row:
@@ -165,7 +165,7 @@ class UserSocialAuth(W2PMixin, UserMixin):
         """Create a UserSocialAuth instance for given user"""
         if not isinstance(uid, six.string_types):
             uid = str(uid)
-        user_id = cls.table().insert(user=user.id, oauth_uid=uid, provider=provider)
+        user_id = cls.table().insert(oauth_user=user.id, oauth_uid=uid, provider=provider)
         if user_id:
             return cls(cls.table()[user_id])
 

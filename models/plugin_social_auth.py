@@ -4,7 +4,7 @@ db.define_table('plugin_social_auth_user',
                 Field('provider', 'string', notnull=True, writable=False),
                 Field('oauth_uid', 'string', notnull=True, writable=False, length=255),
                 Field('extra_data', 'text', writable=False, requires=IS_JSON),
-                Field('user', 'reference auth_user', writable=False, notnull=True))
+                Field('oauth_user', 'reference auth_user', writable=False, notnull=True))
 
 db.plugin_social_auth_user.extra_data.filter_in = lambda obj, dumps=dumps: dumps(obj)
 db.plugin_social_auth_user.extra_data.filter_out = lambda txt, loads=loads: loads(txt) if txt else None
