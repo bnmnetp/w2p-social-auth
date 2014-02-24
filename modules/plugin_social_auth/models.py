@@ -177,7 +177,7 @@ class Nonce(W2PMixin, NonceMixin):
         self.row = row
         self.id = row.id
         self.server_url = row.server_url
-        self.timestamp = row.timestamp
+        self.timestamp = row.nonce_timestamp
         self.salt = row.salt
 
     @classmethod
@@ -186,12 +186,12 @@ class Nonce(W2PMixin, NonceMixin):
         db = cls.db()
         table = cls.table()
         row = db((table.server_url == server_url) &
-                (table.timestamp == timestamp) &
+                (table.nonce_timestamp == timestamp) &
                 (table.salt == salt)).select().first()
         if row:
             return cls(row)
         else:
-            nonce_id = table.insert(server_url=server_url, timestamp=timestamp, salt=salt)
+            nonce_id = table.insert(server_url=server_url, nonce_timestamp=timestamp, salt=salt)
             if nonce_id:
                 return cls(cls.table()[nonce_id])
 

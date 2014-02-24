@@ -11,7 +11,7 @@ db.plugin_social_auth_user.extra_data.filter_out = lambda txt, loads=loads: load
 
 db.define_table('plugin_social_auth_nonce',
                 Field('server_url', 'string', notnull=True, readable=False, writable=False, length=255),
-                Field('timestamp', 'integer', notnull=True, readable=False, writable=False),
+                Field('nonce_timestamp', 'integer', notnull=True, readable=False, writable=False),
                 Field('salt', 'string', notnull=True, readable=False, writable=False, length=40))
 
 db.define_table('plugin_social_auth_association',
