@@ -5,7 +5,7 @@ from gluon.http import HTTP, redirect
 class W2PStrategy(BaseStrategy):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('tpl', W2PTemplateStrategy)
-        self.session = current.plugin_social_auth.session
+        self.session = current.plugin_social_auth.s
         self.plugin = current.plugin_social_auth.plugin
         # self.settings = current.plugin_social_auth.settings
         super(W2PStrategy, self).__init__(*args, **kwargs)

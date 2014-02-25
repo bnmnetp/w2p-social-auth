@@ -1,8 +1,12 @@
 from plugin_social_auth.utils import strategy, get_current_user, login_user
+from social.actions import do_auth, do_complete
 
 @strategy(URL('plugin_social_auth', 'complete'))
 def auth_():
-    from social.actions import do_auth
+
+    # Store "remember me" value in session
+    current.strategy.session_set('remember', current.request.vars.get('remember', False))
+
     if 'social_identifier' in request.vars:
         redirect(request.vars.social_identifier)
         return
@@ -11,7 +15,6 @@ def auth_():
 
 @strategy(URL('plugin_social_auth', 'complete'))
 def complete():
-    from social.actions import do_complete
     try:
         return do_complete(current.strategy,
                            login=lambda strat, user: login_user(user.row),
@@ -24,6 +27,6 @@ def complete():
             raise
         else:
             session.flash = e.message
-            redirect(session.next)
+            redirect(current.strategy.session_get('next'))
 
 

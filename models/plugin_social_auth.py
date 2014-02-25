@@ -27,9 +27,13 @@ _defaults = {'SOCIAL_AUTH_USER_MODEL': 'User',
 
 _plugins = PluginManager('social_auth', **_defaults)
 
+if 'plugin_social_auth' not in session:
+    session.plugin_social_auth = Storage()
+
 # expose globals to plugin_social_auth
 current.plugin_social_auth = Storage()
 current.plugin_social_auth.session = session
+current.plugin_social_auth.s = session.plugin_social_auth
 current.plugin_social_auth.auth = auth
 current.plugin_social_auth.db = db
 current.plugin_social_auth.T = T

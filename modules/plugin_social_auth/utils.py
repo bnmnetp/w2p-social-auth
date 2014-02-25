@@ -14,60 +14,47 @@ class SocialAuth(Auth):
     def __init__(self, environment):
         Auth.__init__(self, environment, db=None)
 
-    def login_form(self):
-        settings = self.settings
-        T = current.plugin_social_auth.T
-
-        form = FORM(
-            _action=URL('plugin_social_auth', 'auth_')
-        )
-
+    def social_form(self, remember_me_form=True):
         backends = load_backends(current.plugin_social_auth.plugin.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)
 
+        div = DIV()
+
+        if  remember_me_form:
+            # adds a new input checkbox "remember me (for .. days)"
+            div.append(DIV(XML("&nbsp;"),
+                       INPUT(_type='checkbox',
+                             _class='checkbox',
+                             _id="auth_user_remember",
+                             _name="remember"),
+                       XML("&nbsp;&nbsp;"),
+                       LABEL(self.messages.label_remember_me,
+                             _for="auth_user_remember")))
+
         select = SELECT(_name='backend')
-        for backend in backends:
+        for backend in sorted(backends.iterkeys()):
             select.append(OPTION(backend, _value=backend))
-        form.append(select)
-        form.append(INPUT(_type='hidden', _name='next',_value=self.get_vars_next()))
-        form.append(INPUT(_value=T(self.messages.login_button), _type='submit'))
 
-        if settings.remember_me_form:
-            ## adds a new input checkbox "remember me for longer"
-            if settings.formstyle != 'bootstrap':
-                addrow(form, XML("&nbsp;"),
-                       DIV(XML("&nbsp;"),
-                           INPUT(_type='checkbox',
-                                 _class='checkbox',
-                                 _id="auth_user_remember",
-                                     _name="remember",
-                                 ),
-                           XML("&nbsp;&nbsp;"),
-                           LABEL(
-                           self.messages.label_remember_me,
-                           _for="auth_user_remember",
-                           )), "",
-                       settings.formstyle,
-                       'auth_user_remember__row')
-            elif settings.formstyle == 'bootstrap':
-                addrow(form,
-                       "",
-                       LABEL(
-                           INPUT(_type='checkbox',
-                                 _id="auth_user_remember",
-                                 _name="remember"),
-                           self.messages.label_remember_me,
-                           _class="checkbox"),
-                       "",
-                       settings.formstyle,
-                       'auth_user_remember__row')
+        div.append(select)
+        div.append(INPUT(_type='hidden', _name='next',_value=self.get_vars_next()))
+        div.append(INPUT(_value=current.plugin_social_auth.T(self.messages.login_button), _type='submit'))
 
-        return form
+        return div
+
+    @staticmethod
+    def login_links():
+        """ Simple View that shows a login link for every configured backend.
+        """
+        return current.response.render('plugin_social_auth/login.html')
+
+    def login_form(self, remember_me_form=True):
+        return FORM(self.social_form(self.settings.remember_me_form and remember_me_form),
+                    _action=URL('plugin_social_auth', 'auth_'))
 
     def social_login(self, next=DEFAULT):
+        # Hide auth navbar
         self.navbar = lambda **x: ''
 
         return self.login_form()
-        # return current.response.render('plugin_social_auth/login.html')
 
     def __call__(self):
         request = self.environment.request
@@ -114,11 +101,18 @@ def get_current_user():
 def login_user(user):
     auth = current.plugin_social_auth.auth
     session = current.plugin_social_auth.session
+
+    # login the user
     auth.login_user(user)
+
+    # Check remember settings and configure auth accordingly
+    remember = current.strategy.session_get('remember', default=False)
     session.auth.expiration = \
-        current.request.vars.get('remember', False) and \
+        remember and \
         auth.settings.long_expiration or \
         auth.settings.expiration
-    session.auth.remember = 'remember' in current.request.vars
+    session.auth.remember = remember
+
     auth.log_event(auth.messages['login_log'], user)
+
     session.flash = auth.messages.logged_in
