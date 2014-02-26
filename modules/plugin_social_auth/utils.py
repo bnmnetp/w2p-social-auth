@@ -1,13 +1,14 @@
-from social.strategies.utils import get_strategy
-from social.utils import setting_name
-from social.backends.utils import load_backends
+import logging
+from plugin_social_auth.social.strategies.utils import get_strategy
+from plugin_social_auth.social.utils import setting_name
+from plugin_social_auth.social.backends.utils import load_backends
+from plugin_social_auth.social.exceptions import SocialAuthBaseException
 from models import User
 from functools import wraps
 from gluon.html import *
 from gluon.http import HTTP, redirect
 from gluon.globals import current
-from gluon.tools import Auth, addrow
-
+from gluon.tools import Auth
 
 DEFAULT = lambda: None
 class SocialAuth(Auth):
@@ -70,6 +71,36 @@ class SocialAuth(Auth):
         else:
             raise HTTP(404)
 
+class W2pExceptionHandler(object):
+    """Class that handles Social Auth AuthExceptions by providing the user
+    with a message, logging an error, and redirecting to some next location.
+
+    By default, the exception message itself is sent to the user using a flash and
+    they are redirected to the location specified in the SOCIAL_AUTH_LOGIN_ERROR_URL
+    setting or to the url stored in the 'next' var.
+    """
+    def process_exception(self, exception):
+        self.strategy = current.strategy
+        if self.strategy is None or self.raise_exception():
+            raise
+
+        if isinstance(exception, SocialAuthBaseException):
+            backend_name = self.strategy.backend.name
+            message = exception.message
+
+            logging.error("[social_auth] backend: %s | message: %s" % (backend_name, message))
+
+            current.newsranx.session.flash = message
+            redirect(self.get_redirect_uri())
+        else:
+            raise
+
+    def raise_exception(self):
+        return self.strategy.setting('RAISE_EXCEPTIONS')
+
+    def get_redirect_uri(self):
+        return self.strategy.setting('LOGIN_ERROR_URL') or current.strategy.session_get('next')
+
 def load_strategy(*args, **kwargs):
     return get_strategy(getattr(current.plugin_social_auth.plugin, setting_name('AUTHENTICATION_BACKENDS')),
                         'plugin_social_auth.w2p_strategy.W2PStrategy',
@@ -116,3 +147,30 @@ def login_user(user):
     auth.log_event(auth.messages['login_log'], user)
 
     session.flash = auth.messages.logged_in
+
+def module_member(name):
+    mod, member = name.rsplit('.', 1)
+    subs = mod.split('.')
+    if len(subs) > 1:
+        fromlist = '.'.join(subs[1:])
+        module = __import__(mod, fromlist=fromlist)
+    else:
+        module = __import__(mod)
+
+    return getattr(module, member)
+
+def get_exception_handler(strategy):
+    setting = strategy.setting('EXCEPTION_HANDLER')
+    handler = None
+    if setting:
+        handler = module_member(setting)()
+    return handler
+
+def process_exception(exception):
+    strategy = current.strategy
+    if strategy:
+        handler = get_exception_handler(strategy)
+        if handler:
+            handler.process_exception(exception)
+        else:
+            raise
