@@ -1,5 +1,5 @@
-from social.storage.base import UserMixin, BaseStorage, NonceMixin, AssociationMixin
-from social.exceptions import NotAllowedToDisconnect
+from plugin_social_auth.social.storage.base import UserMixin, BaseStorage, NonceMixin, AssociationMixin
+from plugin_social_auth.social.exceptions import NotAllowedToDisconnect
 from gluon.globals import current
 import base64
 import six

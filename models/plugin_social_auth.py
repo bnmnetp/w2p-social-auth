@@ -23,7 +23,8 @@ db.define_table('plugin_social_auth_association',
                 Field('assoc_type', 'string', notnull=True, readable=False, writable=False, length=64))
 
 _defaults = {'SOCIAL_AUTH_USER_MODEL': 'User',
-             'SOCIAL_AUTH_USER_FIELDS': ['first_name', 'last_name', 'username', 'email']}
+             'SOCIAL_AUTH_USER_FIELDS': ['first_name', 'last_name', 'username', 'email'],
+             'SOCIAL_AUTH_EXCEPTION_HANDLER' : 'plugin_social_auth.utils.W2pExceptionHandler'}
 
 _plugins = PluginManager('social_auth', **_defaults)
 
