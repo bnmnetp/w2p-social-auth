@@ -66,7 +66,7 @@ class W2PStrategy(BaseStrategy):
         #FIXME seems little awkward
         if path.startswith('http://') or path.startswith('https://'):
             return path
-        host = self.get_setting('OVERRIDE_HOST') or self.request.env.http_host
+        host = self.setting('OVERRIDE_HOST', default=self.request.env.http_host)
         if host.endswith('/') and path.startswith('/'):
             path = path[1:]
 
