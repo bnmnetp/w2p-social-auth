@@ -15,9 +15,11 @@ class SocialAuth(Auth):
     def __init__(self, environment):
         Auth.__init__(self, environment, db=None)
 
-    def social_form(self, remember_me_form=True):
-        backends = load_backends(current.plugin_social_auth.plugin.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)
+    @staticmethod
+    def get_backends():
+        return load_backends(current.plugin_social_auth.plugin.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)
 
+    def social_form(self, remember_me_form=True):
         div = DIV()
 
         if  remember_me_form:
@@ -29,10 +31,11 @@ class SocialAuth(Auth):
                              _name="remember"),
                        XML("&nbsp;&nbsp;"),
                        LABEL(self.messages.label_remember_me,
-                             _for="auth_user_remember")))
+                             _for="auth_user_remember",
+                             _style="display: inline-block")))
 
         select = SELECT(_name='backend')
-        for backend in sorted(backends.iterkeys()):
+        for backend in sorted(SocialAuth.get_backends().iterkeys()):
             select.append(OPTION(backend, _value=backend))
 
         div.append(select)
@@ -43,9 +46,14 @@ class SocialAuth(Auth):
 
     @staticmethod
     def login_links():
-        """ Simple View that shows a login link for every configured backend.
+        """ Returns a list with links for every configured backend.
+        Can be used in stead of login_form()
         """
-        return current.response.render('plugin_social_auth/login.html')
+        div = DIV()
+        for name in sorted(SocialAuth.get_backends().iterkeys()):
+            div.append(A(name, _href=URL('plugin_social_auth', 'auth_', vars=dict(backend=name, next=current.request.vars._next))))
+            div.append(BR())
+        return div
 
     def login_form(self, remember_me_form=True):
         return FORM(self.social_form(self.settings.remember_me_form and remember_me_form),

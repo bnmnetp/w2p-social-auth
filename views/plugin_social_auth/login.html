@@ -1,9 +1,0 @@
-{{from social.backends.utils import load_backends}}
-
-{{extend 'layout.html'}}
-
-{{backends = load_backends(plugins.social_auth.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)}}
-{{for name in sorted(backends.iterkeys()):}}
-    {{=A(name, _href=URL('plugin_social_auth', 'auth_', vars=dict(backend=name, next=request.vars._next)))}}
-    <br />
-{{pass}}
