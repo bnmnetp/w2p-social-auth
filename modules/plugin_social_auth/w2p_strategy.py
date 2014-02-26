@@ -7,7 +7,6 @@ class W2PStrategy(BaseStrategy):
         kwargs.setdefault('tpl', W2PTemplateStrategy)
         self.session = current.plugin_social_auth.s
         self.plugin = current.plugin_social_auth.plugin
-        # self.settings = current.plugin_social_auth.settings
         super(W2PStrategy, self).__init__(*args, **kwargs)
 
     def request_data(self, merge=True):
@@ -66,7 +65,7 @@ class W2PStrategy(BaseStrategy):
         #FIXME seems little awkward
         if path.startswith('http://') or path.startswith('https://'):
             return path
-        host = self.setting('OVERRIDE_HOST', default=self.request.env.http_host)
+        host = self.request.env.http_host
         if host.endswith('/') and path.startswith('/'):
             path = path[1:]
 
