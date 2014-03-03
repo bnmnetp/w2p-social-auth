@@ -1,5 +1,4 @@
 from plugin_social_auth.social.storage.base import UserMixin, BaseStorage, NonceMixin, AssociationMixin
-from plugin_social_auth.social.exceptions import NotAllowedToDisconnect
 from gluon.globals import current
 import base64
 import six
@@ -119,27 +118,16 @@ class UserSocialAuth(W2PMixin, UserMixin):
             q = table.id != association_id
         else:
             q = table.provider != backend_name
-        q &= (table.user == user.id)
+        q &= (table.oauth_user == user.id)
 
-        if hasattr(user, 'has_usable_password'):
-            valid_password = user.has_usable_password()
-        else:
-            valid_password = True
-        return valid_password or not cls.db()(q).isempty()
+        return not cls.db()(q).isempty()
 
     @classmethod
-    def disconnect(cls, name, user, association_id=None):
+    def disconnect(cls, entry, on_disconnected=lambda x: None):
         """Disconnect the social account for the given user"""
-        if cls.allowed_to_disconnect(user, name, association_id):
-            usas = cls.get_social_auth_for_user(user)
-            if association_id:
-                usas = [i for i in usas if i.id == association_id]
-            else:
-                usas = [i for i in usas if i.provider == name]
+        entry.row.delete_record()
 
-            cls.db()(cls.table().id.belongs([usa.row.id for usa in usas])).delete()
-        else:
-            raise NotAllowedToDisconnect()
+        on_disconnected(entry.provider)
 
     @classmethod
     def get_social_auth(cls, provider, uid):
@@ -154,9 +142,17 @@ class UserSocialAuth(W2PMixin, UserMixin):
             return cls(row)
 
     @classmethod
-    def get_social_auth_for_user(cls, user):
+    def get_social_auth_for_user(cls, user, provider=None, id=None):
         """Return all the UserSocialAuth instances for given user"""
-        rows = cls.db()(cls.table().user == user.id).select()
+        table = cls.table()
+        q = (table.oauth_user == user.id)
+        if provider:
+            q &= table.provider == provider
+        if id:
+            q &= table.id == id
+
+        rows = cls.db()(q).select()
+
         if rows:
             return [cls(row) for row in rows]
 

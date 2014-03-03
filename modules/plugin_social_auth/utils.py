@@ -3,6 +3,8 @@ from plugin_social_auth.social.strategies.utils import get_strategy
 from plugin_social_auth.social.utils import setting_name
 from plugin_social_auth.social.backends.utils import load_backends
 from plugin_social_auth.social.exceptions import SocialAuthBaseException
+from plugin_social_auth.social.pipeline.social_auth import associate_user as assoc_user
+from plugin_social_auth.models import UserSocialAuth
 from models import User
 from functools import wraps
 from gluon.html import *
@@ -19,7 +21,7 @@ class SocialAuth(Auth):
     def get_backends():
         return load_backends(current.plugin_social_auth.plugin.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)
 
-    def social_form(self, remember_me_form=True):
+    def social_form(self, remember_me_form=True, backends=None, next=None, button_label=None):
         div = DIV()
 
         if  remember_me_form:
@@ -35,12 +37,38 @@ class SocialAuth(Auth):
                              _style="display: inline-block")))
 
         select = SELECT(_name='backend')
-        for backend in sorted(SocialAuth.get_backends().iterkeys()):
+        for backend in sorted(backends or SocialAuth.get_backends().keys()):
             select.append(OPTION(backend, _value=backend))
 
         div.append(select)
-        div.append(INPUT(_type='hidden', _name='next',_value=self.get_vars_next()))
-        div.append(INPUT(_value=current.plugin_social_auth.T(self.messages.login_button), _type='submit'))
+        div.append(INPUT(_type='hidden', _name='next',_value=next or self.get_vars_next()))
+        div.append(INPUT(_value=button_label or current.plugin_social_auth.T(self.messages.login_button), _type='submit'))
+
+        return div
+
+    def manage_form(self):
+        div = DIV()
+
+        # Get all social account for current user
+        usas = UserSocialAuth.get_social_auth_for_user(get_current_user())
+
+        # Add list with currently connected account
+        div.append(H4(current.plugin_social_auth.T('Your logons')))
+        table = TABLE()
+        for usa in usas:
+            table.append(TR(TD(usa.provider),
+                            TD(A(current.plugin_social_auth.T("remove"),
+                                 _href=URL('plugin_social_auth', 'disconnect',
+                                           vars=dict(backend=usa.provider, next=URL()))) if len(usas) > 1 else '')))
+        div.append(table)
+
+        # Add dropdown to connect new accounts
+        div.append(H4(current.plugin_social_auth.T('Add new logon')))
+        backends = [backend for backend in SocialAuth.get_backends().keys() if
+                    backend not in [x.provider for x in usas]]
+        div.append(self.login_form(remember_me_form=False, next=URL(),
+                                    button_label=current.plugin_social_auth.T("Connect"),
+                                    backends=backends))
 
         return div
 
@@ -55,8 +83,9 @@ class SocialAuth(Auth):
             div.append(BR())
         return div
 
-    def login_form(self, remember_me_form=True):
-        return FORM(self.social_form(self.settings.remember_me_form and remember_me_form),
+    def login_form(self, remember_me_form=True, backends=None, next=None, button_label=None):
+        return FORM(self.social_form(remember_me_form = self.settings.remember_me_form and remember_me_form,
+                                     backends=backends, next=next, button_label=button_label),
                     _action=URL('plugin_social_auth', 'auth_'))
 
     def social_login(self, next=DEFAULT):
@@ -92,7 +121,12 @@ class W2pExceptionHandler(object):
         if self.strategy is None or self.raise_exception():
             raise
 
-        if isinstance(exception, SocialAuthBaseException):
+        #FIXME: workaround for issue:
+        # https://code.google.com/p/w2p-social-auth/issues/detail?id=1
+        def is_social_auth_exception(ex):
+            return ex.__class__.__module__ in('social.exceptions', SocialAuthBaseException.__module__)
+
+        if is_social_auth_exception(exception):
             backend_name = self.strategy.backend.name
             message = exception.message
 
@@ -182,3 +216,15 @@ def process_exception(exception):
             handler.process_exception(exception)
         else:
             raise
+
+# Custom  pipeline functions
+def disconnect(strategy, entries, user_storage, on_disconnected=None,  *args, **kwargs):
+    for entry in entries:
+        user_storage.disconnect(entry, on_disconnected)
+
+def associate_user(strategy, uid, user=None, social=None, *args, **kwargs):
+    assoc = assoc_user(strategy, uid, user=user, social=social, *args, **kwargs)
+    if assoc:
+        current.plugin_social_auth.session.flash = '%s %s' % \
+                (current.plugin_social_auth.T('Added logon: '), strategy.backend.name)
+    return assoc
