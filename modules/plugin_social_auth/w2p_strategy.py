@@ -1,6 +1,6 @@
 from plugin_social_auth.social.strategies.base import BaseStrategy, BaseTemplateStrategy
 from gluon.globals import current
-from gluon.http import HTTP, redirect
+from gluon.http import redirect
 
 class W2PStrategy(BaseStrategy):
     def __init__(self, *args, **kwargs):

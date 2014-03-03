@@ -1,4 +1,5 @@
 from json import loads, dumps
+from plugin_social_auth.social.pipeline import DEFAULT_AUTH_PIPELINE, DEFAULT_DISCONNECT_PIPELINE
 
 db.define_table('plugin_social_auth_user',
                 Field('provider', 'string', notnull=True, writable=False),
@@ -24,7 +25,11 @@ db.define_table('plugin_social_auth_association',
 
 _defaults = {'SOCIAL_AUTH_USER_MODEL': 'User',
              'SOCIAL_AUTH_USER_FIELDS': ['first_name', 'last_name', 'username', 'email'],
-             'SOCIAL_AUTH_EXCEPTION_HANDLER' : 'plugin_social_auth.utils.W2pExceptionHandler'}
+             'SOCIAL_AUTH_EXCEPTION_HANDLER' : 'plugin_social_auth.utils.W2pExceptionHandler',
+             'SOCIAL_AUTH_PIPELINE': tuple([x.replace('social.pipeline.social_auth.associate_user',
+                                                      'plugin_social_auth.utils.associate_user') for x in DEFAULT_AUTH_PIPELINE]),
+             'SOCIAL_AUTH_DISCONNECT_PIPELINE': tuple([x.replace('social.pipeline.disconnect.disconnect',
+                                                      'plugin_social_auth.utils.disconnect') for x in DEFAULT_DISCONNECT_PIPELINE])}
 
 _plugins = PluginManager('social_auth', **_defaults)
 

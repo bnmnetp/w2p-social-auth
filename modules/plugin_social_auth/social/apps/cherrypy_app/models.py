@@ -1,5 +1,5 @@
 """Flask SQLAlchemy ORM models for Social Auth"""
-import web
+import cherrypy
 
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
@@ -10,18 +10,24 @@ from social.utils import setting_name, module_member
 from social.storage.sqlalchemy_orm import SQLAlchemyUserMixin, \
                                           SQLAlchemyAssociationMixin, \
                                           SQLAlchemyNonceMixin, \
-                                          SQLAlchemyCodeMixin, \
                                           BaseSQLAlchemyStorage
-from social.apps.webpy_app.fields import JSONType
+from social.apps.flask_app.fields import JSONType
 
 
 SocialBase = declarative_base()
 
-UID_LENGTH = web.config.get(setting_name('UID_LENGTH'), 255)
-User = module_member(web.config[setting_name('USER_MODEL')])
+DB_SESSION_ATTR = cherrypy.config.get(setting_name('DB_SESSION_ATTR'), 'db')
+UID_LENGTH = cherrypy.config.get(setting_name('UID_LENGTH'), 255)
+User = module_member(cherrypy.config[setting_name('USER_MODEL')])
 
 
-class UserSocialAuth(SQLAlchemyUserMixin, SocialBase):
+class CherryPySocialBase(object):
+    @classmethod
+    def _session(cls):
+        return getattr(cherrypy.request, DB_SESSION_ATTR)
+
+
+class UserSocialAuth(CherryPySocialBase, SQLAlchemyUserMixin, SocialBase):
     """Social Auth association model"""
     __tablename__ = 'social_auth_usersocialauth'
     __table_args__ = (UniqueConstraint('provider', 'uid'),)
@@ -41,12 +47,8 @@ class UserSocialAuth(SQLAlchemyUserMixin, SocialBase):
     def user_model(cls):
         return User
 
-    @classmethod
-    def _session(cls):
-        return web.db_session
 
-
-class Nonce(SQLAlchemyNonceMixin, SocialBase):
+class Nonce(CherryPySocialBase, SQLAlchemyNonceMixin, SocialBase):
     """One use numbers"""
     __tablename__ = 'social_auth_nonce'
     __table_args__ = (UniqueConstraint('server_url', 'timestamp', 'salt'),)
@@ -55,12 +57,8 @@ class Nonce(SQLAlchemyNonceMixin, SocialBase):
     timestamp = Column(Integer)
     salt = Column(String(40))
 
-    @classmethod
-    def _session(cls):
-        return web.db_session
 
-
-class Association(SQLAlchemyAssociationMixin, SocialBase):
+class Association(CherryPySocialBase, SQLAlchemyAssociationMixin, SocialBase):
     """OpenId account association"""
     __tablename__ = 'social_auth_association'
     __table_args__ = (UniqueConstraint('server_url', 'handle'),)
@@ -72,25 +70,8 @@ class Association(SQLAlchemyAssociationMixin, SocialBase):
     lifetime = Column(Integer)
     assoc_type = Column(String(64))
 
-    @classmethod
-    def _session(cls):
-        return web.db_session
 
-
-class Code(SQLAlchemyCodeMixin, SocialBase):
-    __tablename__ = 'social_auth_code'
-    __table_args__ = (UniqueConstraint('code', 'email'),)
-    id = Column(Integer, primary_key=True)
-    email = Column(String(200))
-    code = Column(String(32), index=True)
-
-    @classmethod
-    def _session(cls):
-        return web.db_session
-
-
-class WebpyStorage(BaseSQLAlchemyStorage):
+class CherryPyStorage(BaseSQLAlchemyStorage):
     user = UserSocialAuth
     nonce = Nonce
     association = Association
-    code = Code

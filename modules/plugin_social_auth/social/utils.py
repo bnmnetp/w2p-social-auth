@@ -4,7 +4,8 @@ import unicodedata
 import collections
 import six
 
-from social.p3 import urlparse, urlunparse, urlencode, parse_qs as battery_parse_qs
+from social.p3 import urlparse, urlunparse, urlencode, \
+                      parse_qs as battery_parse_qs
 
 
 SETTING_PREFIX = 'SOCIAL_AUTH'
@@ -123,13 +124,14 @@ def drop_lists(value):
     return out
 
 
-def partial_pipeline_data(strategy, user, *args, **kwargs):
+def partial_pipeline_data(strategy, user=None, *args, **kwargs):
     partial = strategy.session_get('partial_pipeline', None)
     if partial:
         idx, backend, xargs, xkwargs = strategy.partial_from_session(partial)
         if backend == strategy.backend.name:
             kwargs.setdefault('pipeline_index', idx)
-            kwargs.setdefault('user', user)
+            if user:  # don't update user if it's None
+                kwargs.setdefault('user', user)
             kwargs.setdefault('request', strategy.request)
             xkwargs.update(kwargs)
             return xargs, xkwargs
