@@ -22,17 +22,23 @@ class SocialAuth(Auth):
     def get_backends():
         return load_backends(current.plugin_social_auth.plugin.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)
 
+    @staticmethod
+    def get_providers():
+        return current.plugin_social_auth.plugin.SOCIAL_AUTH_PROVIDERS
+
     def manage_form(self):
         div = DIV()
 
         # Get all social account for current user
         usas = UserSocialAuth.get_social_auth_for_user(get_current_user())
 
+        providers = SocialAuth.get_providers()
+
         # Add list with currently connected account
         div.append(H4(current.plugin_social_auth.T('Your logons')))
         table = TABLE()
         for usa in usas:
-            table.append(TR(TD(usa.provider),
+            table.append(TR(TD(providers[usa.provider]),
                             TD(A(current.plugin_social_auth.T("remove"),
                                  _href=URL('plugin_social_auth', 'disconnect',
                                            vars=dict(backend=usa.provider, next=URL()))) if len(usas) > 1 else '')))
@@ -41,8 +47,8 @@ class SocialAuth(Auth):
         # Add dropdown to connect new accounts
         div.append(H4(current.plugin_social_auth.T('Add new logon')))
         backends = [backend for backend in SocialAuth.get_backends().keys() if
-                    backend not in [x.provider for x in usas]]
-        div.append(self.login_form(remember_me_form=False, next=URL(),
+                    backend not in [x.provider for x in usas] and backend in providers]
+        div.append(self.dropdown_form(remember_me_form=False, next=URL(),
                                     button_label=current.plugin_social_auth.T("Connect"),
                                     backends=backends))
 
@@ -53,17 +59,21 @@ class SocialAuth(Auth):
         """ Returns a list with links for every configured backend.
         Can be used in stead of login_form()
         """
+        providers = SocialAuth.get_providers()
         div = DIV()
         for name in sorted(SocialAuth.get_backends().iterkeys()):
-            div.append(A(name, _href=URL('plugin_social_auth', 'auth_', vars=dict(backend=name, next=current.request.vars._next))))
-            div.append(BR())
+            if name in providers:
+                div.append(A(providers['name'], _href=URL('plugin_social_auth', 'auth_', vars=dict(backend=name, next=current.request.vars._next))))
+                div.append(BR())
         return div
 
     @staticmethod
     def dropdown(backends):
+        providers = SocialAuth.get_providers()
         select = SELECT(_name='backend')
         for backend in sorted(backends or SocialAuth.get_backends().keys()):
-            select.append(OPTION(backend, _value=backend))
+            if backend in providers:
+                select.append(OPTION(providers[backend], _value=backend))
         return select
 
     def remember_me_form(self):
@@ -77,11 +87,12 @@ class SocialAuth(Auth):
                          _for="auth_user_remember",
                          _style="display: inline-block"))
 
-    def dropdown_form(self, remember_me_form=True, backends=None, next=None, button_label=None):
+    def dropdown_form(self, remember_me_form=True, backends=None, next=None, button_label=None, action=URL('plugin_social_auth', 'auth_')):
         return FORM((self.remember_me_form() if remember_me_form else ''),
                     INPUT(_type='hidden', _name='next',_value=next or self.get_vars_next()),
                     DIV(SocialAuth.dropdown(backends),
                         DIV(INPUT(_value=button_label or current.plugin_social_auth.T(self.messages.login_button), _type='submit'))),
+                    _action=action,
                     _id='social_dropdown_form')
 
     def openid_form(self, remember_me_form=True):
