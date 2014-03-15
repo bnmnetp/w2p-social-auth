@@ -11,40 +11,16 @@ from gluon.html import *
 from gluon.http import HTTP, redirect
 from gluon.globals import current
 from gluon.tools import Auth
+from gluon.validators import IS_URL
 
 DEFAULT = lambda: None
 class SocialAuth(Auth):
     def __init__(self, environment):
-        Auth.__init__(self, environment, db=None)
+        Auth.__init__(self, environment, db=None, controller='plugin_social_auth')
 
     @staticmethod
     def get_backends():
         return load_backends(current.plugin_social_auth.plugin.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)
-
-    def social_form(self, remember_me_form=True, backends=None, next=None, button_label=None):
-        div = DIV()
-
-        if  remember_me_form:
-            # adds a new input checkbox "remember me (for .. days)"
-            div.append(DIV(XML("&nbsp;"),
-                       INPUT(_type='checkbox',
-                             _class='checkbox',
-                             _id="auth_user_remember",
-                             _name="remember"),
-                       XML("&nbsp;&nbsp;"),
-                       LABEL(self.messages.label_remember_me,
-                             _for="auth_user_remember",
-                             _style="display: inline-block")))
-
-        select = SELECT(_name='backend')
-        for backend in sorted(backends or SocialAuth.get_backends().keys()):
-            select.append(OPTION(backend, _value=backend))
-
-        div.append(select)
-        div.append(INPUT(_type='hidden', _name='next',_value=next or self.get_vars_next()))
-        div.append(INPUT(_value=button_label or current.plugin_social_auth.T(self.messages.login_button), _type='submit'))
-
-        return div
 
     def manage_form(self):
         div = DIV()
@@ -83,16 +59,61 @@ class SocialAuth(Auth):
             div.append(BR())
         return div
 
-    def login_form(self, remember_me_form=True, backends=None, next=None, button_label=None):
-        return FORM(self.social_form(remember_me_form = self.settings.remember_me_form and remember_me_form,
-                                     backends=backends, next=next, button_label=button_label),
-                    _action=URL('plugin_social_auth', 'auth_'))
+    @staticmethod
+    def dropdown(backends):
+        select = SELECT(_name='backend')
+        for backend in sorted(backends or SocialAuth.get_backends().keys()):
+            select.append(OPTION(backend, _value=backend))
+        return select
+
+    def remember_me_form(self):
+        return DIV(XML("&nbsp;"),
+                   INPUT(_type='checkbox',
+                         _class='checkbox',
+                         _id="auth_user_remember",
+                         _name="remember"),
+                   XML("&nbsp;&nbsp;"),
+                   LABEL(self.messages.label_remember_me,
+                         _for="auth_user_remember",
+                         _style="display: inline-block"))
+
+    def dropdown_form(self, remember_me_form=True, backends=None, next=None, button_label=None):
+        return FORM((self.remember_me_form() if remember_me_form else ''),
+                    INPUT(_type='hidden', _name='next',_value=next or self.get_vars_next()),
+                    DIV(SocialAuth.dropdown(backends),
+                        DIV(INPUT(_value=button_label or current.plugin_social_auth.T(self.messages.login_button), _type='submit'))),
+                    _id='social_dropdown_form')
+
+    def openid_form(self, remember_me_form=True):
+        return FORM((self.remember_me_form() if remember_me_form else ''),
+                    INPUT(_type="hidden", _name="backend", _value="openid"),
+                    INPUT(_type="hidden", _name="next", _value=self.get_vars_next()),
+                    DIV(DIV(DIV(INPUT(_id="openid_identifier",
+                                      _name="openid_identifier",
+                                      _placeholder="Or, manually enter your OpenId",
+                                      _type="text",
+                                      requires=IS_URL())),
+                            DIV(INPUT(_type="submit", _value="Submit"))),
+                        _id="openid_identifier_area"),
+                    _id="social_openid_form")
 
     def social_login(self, next=DEFAULT):
         # Hide auth navbar
         self.navbar = lambda **x: ''
 
-        return self.login_form()
+        form1 = self.dropdown_form()
+        form2 = self.openid_form()
+        accepted = False
+        if form1.process(formname='form_one').accepted:
+            accepted = True
+        if form2.process(formname='form_two').accepted:
+            accepted = True
+        if accepted:
+            redirect(URL('plugin_social_auth', 'auth_',
+                     # Convert post_vars to get_vars for redirect
+                     vars={your_key: current.request._vars[your_key] for
+                           your_key in ['backend', 'openid_identifier', 'next']}))
+        return dict(form1=form1, form2=form2)
 
     def __call__(self):
         request = self.environment.request

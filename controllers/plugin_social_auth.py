@@ -7,11 +7,11 @@ def auth_():
     # Store "remember me" value in session
     current.strategy.session_set('remember', current.request.vars.get('remember', False))
 
-    if 'social_identifier' in request.vars:
-        redirect(request.vars.social_identifier)
-        return
+    try:
+        return do_auth(current.strategy)
+    except Exception as e:
+        process_exception(e)
 
-    return do_auth(current.strategy)
 
 @strategy(URL('plugin_social_auth', 'complete'))
 def complete():
@@ -41,6 +41,9 @@ def associations():
     """Shows form to manage social account associat
     response.title = T('Manage logins')ions."""
     return dict(form=auth.manage_form())
+
+def user():
+    return auth()
 
 
 
