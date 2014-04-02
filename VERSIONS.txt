@@ -1,2 +1,2 @@
 python-social-auth: 0.1.22
-w2p-social-auth: 0.3.0
+w2p-social-auth: 0.3.1
