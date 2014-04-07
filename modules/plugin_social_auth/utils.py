@@ -133,10 +133,8 @@ class SocialAuth(Auth):
             redirect(URL(r=request, args='login'))
         if args[0] == 'login':
             return self.social_login()
-        elif args[0] == 'logout':
-            return self.logout()
-        elif args[0] == 'groups':
-            return self.groups()
+        elif args[0] in ['logout', 'groups', 'profile']:
+             return getattr(self, args[0])()
         else:
             raise HTTP(404)
 
