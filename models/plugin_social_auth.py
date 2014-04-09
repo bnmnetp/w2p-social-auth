@@ -1,5 +1,6 @@
 from json import loads, dumps
 from plugin_social_auth.social.pipeline import DEFAULT_AUTH_PIPELINE, DEFAULT_DISCONNECT_PIPELINE
+from gluon.globals import current
 
 db.define_table('plugin_social_auth_user',
                 Field('provider', 'string', notnull=True, writable=False),
