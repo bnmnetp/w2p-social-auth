@@ -8,6 +8,7 @@ class User(object):
     def __init__(self, row):
         self.row = row
         self.id = row.id
+        self.__dict__.update(self.row.as_dict())
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
