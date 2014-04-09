@@ -126,6 +126,24 @@ class SocialAuth(Auth):
                            your_key in ['backend', 'openid_identifier', 'next']}))
         return dict(form1=form1, form2=form2)
 
+    def navbar(self, prefix='Welcome', action=None,
+               separators=(' [ ', ' | ', ' ] '), user_identifier=DEFAULT,
+               referrer_actions=DEFAULT, mode='default'):
+
+        def make_user_id(user):
+            first_name = user.get('first_name', '')
+            if first_name != '':
+                return first_name
+            username = user.get('username', '')
+            if username != '':
+                return username
+            email = user.get('email', '')
+            if email != '':
+                return email.split('@', 1)[0]
+
+        return super(SocialAuth, self).navbar(prefix=prefix, action=action, separators=separators,
+                                              user_identifier=make_user_id, mode=mode)
+
     def __call__(self):
         request = self.environment.request
         args = request.args
