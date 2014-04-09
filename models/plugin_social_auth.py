@@ -30,7 +30,8 @@ _defaults = {'SOCIAL_AUTH_USER_MODEL': 'User',
              'SOCIAL_AUTH_PIPELINE': tuple([x.replace('social.pipeline.social_auth.associate_user',
                                                       'plugin_social_auth.utils.associate_user') for x in DEFAULT_AUTH_PIPELINE]),
              'SOCIAL_AUTH_DISCONNECT_PIPELINE': tuple([x.replace('social.pipeline.disconnect.disconnect',
-                                                      'plugin_social_auth.utils.disconnect') for x in DEFAULT_DISCONNECT_PIPELINE])}
+                                                      'plugin_social_auth.utils.disconnect') for x in DEFAULT_DISCONNECT_PIPELINE]),
+             'SOCIAL_AUTH_ENABLE_PERSONA': True}
 
 _plugins = PluginManager('social_auth', **_defaults)
 

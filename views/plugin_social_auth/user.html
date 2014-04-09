@@ -5,3 +5,8 @@
 <p><h3>{{=T('Or manually enter your OpenId:')}}</h3></p>
 {{=form2}}
 </div>
+
+<!-- Mozilla Persona BrowserID JavaScript -->
+{{if enable_persona:}}
+    {{include 'plugin_social_auth\persona.html'}}
+{{pass}}

@@ -49,8 +49,8 @@ class SocialAuth(Auth):
         backends = [backend for backend in SocialAuth.get_backends().keys() if
                     backend not in [x.provider for x in usas] and backend in providers]
         div.append(self.dropdown_form(remember_me_form=False, next=URL(),
-                                    button_label=current.plugin_social_auth.T("Connect"),
-                                    backends=backends))
+                                      button_label=current.plugin_social_auth.T("Connect"),
+                                      backends=backends))
 
         return div
 
@@ -70,10 +70,16 @@ class SocialAuth(Auth):
     @staticmethod
     def dropdown(backends):
         providers = SocialAuth.get_providers()
-        select = SELECT(_name='backend')
+        select = SELECT(_id='backend-select',_name='backend')
         for backend in sorted(backends or SocialAuth.get_backends().keys()):
             if backend in providers:
-                select.append(OPTION(providers[backend], _value=backend))
+                option = OPTION(providers[backend], _value=backend)
+                select.append(option)
+                # Persona required js. Hide it initially (to show it again using js)
+                if backend == 'persona':
+                    option['_id'] = "persona-option"
+                    option['_style'] = "display:none;"
+
         return select
 
     def remember_me_form(self):
@@ -90,6 +96,7 @@ class SocialAuth(Auth):
     def dropdown_form(self, remember_me_form=True, backends=None, next=None, button_label=None, action=URL('plugin_social_auth', 'auth_')):
         return FORM((self.remember_me_form() if remember_me_form else ''),
                     INPUT(_type='hidden', _name='next',_value=next or self.get_vars_next()),
+                    INPUT(_type='hidden', _id='assertion', _name='assertion'), # Used for Mozilla Persona
                     DIV(SocialAuth.dropdown(backends),
                         DIV(INPUT(_value=button_label or current.plugin_social_auth.T(self.messages.login_button), _type='submit'))),
                     _action=action,
@@ -124,7 +131,7 @@ class SocialAuth(Auth):
                      # Convert post_vars to get_vars for redirect
                      vars={your_key: current.request._vars[your_key] for
                            your_key in ['backend', 'openid_identifier', 'next']}))
-        return dict(form1=form1, form2=form2)
+        return dict(form1=form1, form2=form2, enable_persona=use_persona())
 
     def __call__(self):
         request = self.environment.request
@@ -246,6 +253,9 @@ def process_exception(exception):
             handler.process_exception(exception)
         else:
             raise
+
+def use_persona():
+    return current.plugin_social_auth.plugin.SOCIAL_AUTH_ENABLE_PERSONA
 
 # Custom  pipeline functions
 def disconnect(strategy, entries, user_storage, on_disconnected=None,  *args, **kwargs):

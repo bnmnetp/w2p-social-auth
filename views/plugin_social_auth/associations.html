@@ -2,3 +2,8 @@
 <div id="social_auth_associations">
 {{=form}}
 </div>
+
+<!-- Mozilla Persona BrowserID JavaScript -->
+{{if enable_persona:}}
+    {{include 'plugin_social_auth\persona.html'}}
+{{pass}}
