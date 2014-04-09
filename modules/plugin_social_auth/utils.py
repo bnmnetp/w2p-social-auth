@@ -35,14 +35,15 @@ class SocialAuth(Auth):
         providers = SocialAuth.get_providers()
 
         # Add list with currently connected account
-        div.append(H4(current.plugin_social_auth.T('Your logons')))
-        table = TABLE()
+        disconnect_form = FORM(SELECT(_name='backend', _size=5),
+                               INPUT(_type="hidden", _name="next", _value=URL()),
+                               DIV(INPUT(_value='Disconnect', _type='submit') if len(usas) > 1 else ''),
+                               _action=URL('plugin_social_auth', 'disconnect'))
         for usa in usas:
-            table.append(TR(TD(providers[usa.provider]),
-                            TD(A(current.plugin_social_auth.T("remove"),
-                                 _href=URL('plugin_social_auth', 'disconnect',
-                                           vars=dict(backend=usa.provider, next=URL()))) if len(usas) > 1 else '')))
-        div.append(table)
+            disconnect_form[0].append(OPTION(providers[usa.provider], _value=usa.provider))
+
+        div.append(H4(current.plugin_social_auth.T('Your logons')))
+        div.append(disconnect_form)
 
         # Add dropdown to connect new accounts
         div.append(H4(current.plugin_social_auth.T('Add new logon')))
