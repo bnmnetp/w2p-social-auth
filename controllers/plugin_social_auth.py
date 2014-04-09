@@ -20,7 +20,8 @@ def auth_():
 @strategy(URL('plugin_social_auth', 'complete'))
 def complete():
     # Store "next" value in session
-    current.strategy.session_set('next', current.request.vars.get('next', None))
+    _next = current.request.vars.get('next', None)
+    if _next: current.strategy.session_set('next', _next)
 
     try:
         return do_complete(current.strategy,
