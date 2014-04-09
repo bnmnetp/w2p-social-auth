@@ -41,6 +41,7 @@ class SocialAuth(Auth):
                                _action=URL('plugin_social_auth', 'disconnect'))
         for usa in usas:
             disconnect_form[0].append(OPTION(providers[usa.provider], _value=usa.provider))
+            disconnect_form[0][0]['_selected'] = 'selected'
 
         div.append(H4(current.plugin_social_auth.T('Your logons')))
         div.append(disconnect_form)
