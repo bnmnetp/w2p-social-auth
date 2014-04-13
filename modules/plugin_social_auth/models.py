@@ -143,16 +143,20 @@ class UserSocialAuth(W2PMixin, UserMixin):
             return cls(row)
 
     @classmethod
-    def get_social_auth_for_user(cls, user, provider=None, id=None):
+    def get_social_auth_for_user(cls, user=None, provider=None, association_id=None):
         """Return all the UserSocialAuth instances for given user"""
         table = cls.table()
-        q = (table.oauth_user == user.id)
-        if provider:
-            q &= table.provider == provider
-        if id:
-            q &= table.id == id
 
-        rows = cls.db()(q).select()
+        # Build dynamic query based on kwargs
+        filters = []
+        for k, v in dict(id=association_id,
+                         provider=provider,
+                         oauth_user=user.id if user else None).iteritems():
+            if None != v:
+                filters.append(getattr(table, k) == v)
+        query = reduce(lambda a, b: (a & b), filters)
+
+        rows = cls.db()(query).select()
 
         if rows:
             return [cls(row) for row in rows]
@@ -225,10 +229,10 @@ class Association(W2PMixin, AssociationMixin):
         table = cls.table()
 
         # Build dynamic query based on kwargs
-        queries = []
+        filters = []
         for k, v in kwargs.iteritems():
-            queries.append(getattr(table, k) == v)
-        query = reduce(lambda a, b: (a & b), queries)
+            filters.append(getattr(table, k) == v)
+        query = reduce(lambda a, b: (a & b), filters)
 
         rows = cls.db()(query).select()
         return [cls(row) for row in rows]

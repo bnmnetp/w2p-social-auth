@@ -31,7 +31,16 @@ _defaults = {'SOCIAL_AUTH_USER_MODEL': 'User',
                                                       'plugin_social_auth.utils.associate_user') for x in DEFAULT_AUTH_PIPELINE]),
              'SOCIAL_AUTH_DISCONNECT_PIPELINE': tuple([x.replace('social.pipeline.disconnect.disconnect',
                                                       'plugin_social_auth.utils.disconnect') for x in DEFAULT_DISCONNECT_PIPELINE]),
-             'SOCIAL_AUTH_ENABLE_PERSONA': False}
+             'SOCIAL_AUTH_ENABLE_PERSONA': False,
+             'SOCIAL_AUTH_PROVIDERS': {},
+
+             # Google OpenID should not be used with manual OpenID entry because
+             # Google may use different ID's for different domains so it's not guaranteed to
+             # always stay the same. If you want to use Google OpenId, use:
+             # social.backends.google.GoogleOpenId (will use email as ID)
+             # http://blog.stackoverflow.com/2010/04/openid-one-year-later/
+             # http://blog.stackoverflow.com/2009/04/googles-openids-are-unique-per-domain/
+             'SOCIAL_AUTH_DISALLOWED_OPENID_HOSTS': ['www.google.com', 'google.com']}
 
 _plugins = PluginManager('social_auth', **_defaults)
 

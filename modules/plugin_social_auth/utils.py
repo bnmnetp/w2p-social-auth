@@ -3,6 +3,7 @@ from plugin_social_auth.social.strategies.utils import get_strategy
 from plugin_social_auth.social.utils import setting_name
 from plugin_social_auth.social.backends.utils import load_backends
 from plugin_social_auth.social.exceptions import SocialAuthBaseException
+from plugin_social_auth.social.actions import do_disconnect, do_auth
 from plugin_social_auth.social.pipeline.social_auth import associate_user as assoc_user
 from plugin_social_auth.models import UserSocialAuth
 from models import User
@@ -12,6 +13,7 @@ from gluon.http import HTTP, redirect
 from gluon.globals import current
 from gluon.tools import Auth
 from gluon.validators import IS_URL
+from urlparse import urlparse
 
 DEFAULT = lambda: None
 class SocialAuth(Auth):
@@ -25,49 +27,6 @@ class SocialAuth(Auth):
     @staticmethod
     def get_providers():
         return current.plugin_social_auth.plugin.SOCIAL_AUTH_PROVIDERS
-
-    def manage_form(self):
-        div = DIV()
-
-        # Get all social account for current user
-        usas = UserSocialAuth.get_social_auth_for_user(get_current_user())
-
-        providers = SocialAuth.get_providers()
-
-        # Add list with currently connected account
-        disconnect_form = FORM(SELECT(_name='backend', _size=5),
-                               INPUT(_type="hidden", _name="next", _value=URL()),
-                               DIV(INPUT(_value='Disconnect', _type='submit') if len(usas) > 1 else ''),
-                               _action=URL('plugin_social_auth', 'disconnect'))
-        for usa in usas:
-            disconnect_form[0].append(OPTION(providers[usa.provider], _value=usa.provider))
-            disconnect_form[0][0]['_selected'] = 'selected'
-
-        div.append(H4(current.plugin_social_auth.T('Your logons')))
-        div.append(disconnect_form)
-
-        # Add dropdown to connect new accounts
-        div.append(H4(current.plugin_social_auth.T('Add new logon')))
-        backends = [backend for backend in SocialAuth.get_backends().keys() if
-                    backend not in [x.provider for x in usas] and backend in providers]
-        div.append(self.dropdown_form(remember_me_form=False, next=URL(),
-                                      button_label=current.plugin_social_auth.T("Connect"),
-                                      backends=backends))
-
-        return div
-
-    @staticmethod
-    def login_links():
-        """ Returns a list with links for every configured backend.
-        Can be used in stead of login_form()
-        """
-        providers = SocialAuth.get_providers()
-        div = DIV()
-        for name in sorted(SocialAuth.get_backends().iterkeys()):
-            if name in providers:
-                div.append(A(providers['name'], _href=URL('plugin_social_auth', 'auth_', vars=dict(backend=name, next=current.request.vars._next))))
-                div.append(BR())
-        return div
 
     @staticmethod
     def dropdown(backends):
@@ -95,27 +54,48 @@ class SocialAuth(Auth):
                          _for="auth_user_remember",
                          _style="display: inline-block"))
 
-    def dropdown_form(self, remember_me_form=True, backends=None, next=None, button_label=None, action=URL('plugin_social_auth', 'auth_')):
-        return FORM((self.remember_me_form() if remember_me_form else ''),
+    def dropdown_form(self, backends=None, next=None, button_label=None):
+        return FORM((self.remember_me_form() if self.remember_me_form else ''),
                     INPUT(_type='hidden', _name='next',_value=next or self.get_vars_next()),
                     INPUT(_type='hidden', _id='assertion', _name='assertion'), # Used for Mozilla Persona
                     DIV(SocialAuth.dropdown(backends),
                         DIV(INPUT(_value=button_label or current.plugin_social_auth.T(self.messages.login_button), _type='submit'))),
-                    _action=action,
                     _id='social_dropdown_form')
 
-    def openid_form(self, remember_me_form=True):
-        return FORM((self.remember_me_form() if remember_me_form else ''),
+    def openid_form(self, next=None):
+        return FORM((self.remember_me_form() if self.remember_me_form else ''),
                     INPUT(_type="hidden", _name="backend", _value="openid"),
-                    INPUT(_type="hidden", _name="next", _value=self.get_vars_next()),
+                    INPUT(_type="hidden", _name="next", _value=next or self.get_vars_next()),
                     DIV(DIV(DIV(INPUT(_id="openid_identifier",
                                       _name="openid_identifier",
                                       _placeholder="Or, manually enter your OpenId",
                                       _type="text",
-                                      requires=IS_URL())),
+                                      requires=[IS_URL(), IS_ALLOWED_OPENID()])),
                             DIV(INPUT(_type="submit", _value="Submit"))),
                         _id="openid_identifier_area"),
                     _id="social_openid_form")
+
+    def disconnect_form(self, next=None, usas=None, providers=None):
+        usas = usas or UserSocialAuth.get_social_auth_for_user(get_current_user())
+        usas_no_openid = [usa for usa in usas if usa.provider != 'openid']
+        providers = providers or SocialAuth.get_providers()
+
+        # Add list with currently connected accounts
+        form = FORM(SELECT(_name='association_id', _size=5),
+                    INPUT(_type="hidden", _name="next", _value=next),
+                    DIV(INPUT(_value='Disconnect', _type='submit') if len(usas) > 1 else ''))
+
+        for usa in usas_no_openid:
+            form[0].append(OPTION(providers[usa.provider], _value=usa.id))
+
+        i = 0
+        for usa in [x for x in usas if x.provider == 'openid']:
+            i += 1
+            form[0].append(OPTION('OpenID [%s]' % urlparse(usa.uid).hostname, _value=usa.id))
+
+        form[0][0]['_selected'] = 'selected'
+
+        return form
 
     def social_login(self, next=DEFAULT):
         # Hide auth navbar
@@ -123,17 +103,50 @@ class SocialAuth(Auth):
 
         form1 = self.dropdown_form()
         form2 = self.openid_form()
-        accepted = False
+
+        if form1.process(formname='form_one').accepted or form2.process(formname='form_two').accepted:
+            return _auth()
+
+        return dict(form=DIV(H4(current.plugin_social_auth.T('Choose your provider:')),
+                             form1,
+                             P(EM(current.plugin_social_auth.T('Or manually enter your OpenId:'))),
+                             form2),
+                    enable_persona=use_persona())
+
+    def associations(self):
+        """Shows form to manage social account associations."""
+        next = URL(args=['associations'])
+
+        if not self.is_logged_in():
+            redirect(URL(args=['login'], vars={'_next':next}),
+                     client_side=self.settings.client_side)
+
+        usas = UserSocialAuth.get_social_auth_for_user(get_current_user())
+        providers = SocialAuth.get_providers()
+
+        form1 = self.disconnect_form(usas=usas, providers=providers, next=next)
+
+        backends = [backend for backend in SocialAuth.get_backends().keys() if
+                    backend not in [x.provider for x in usas] and backend in providers]
+
+        form2 = self.dropdown_form(next=next, button_label=current.plugin_social_auth.T("Connect"),
+                                   backends=backends)
+
+        form3 = self.openid_form(next=next)
+
         if form1.process(formname='form_one').accepted:
-            accepted = True
-        if form2.process(formname='form_two').accepted:
-            accepted = True
-        if accepted:
-            redirect(URL('plugin_social_auth', 'auth_',
-                     # Convert post_vars to get_vars for redirect
-                     vars={your_key: current.request._vars[your_key] for
-                           your_key in ['backend', 'openid_identifier', 'next']}))
-        return dict(form1=form1, form2=form2, enable_persona=use_persona())
+            return _disconnect()
+        if form2.process(formname='form_two').accepted or form3.process(formname='form_three').accepted:
+            return _auth()
+
+        form = DIV(FIELDSET(LEGEND(current.plugin_social_auth.T('Your logons')),
+                            form1),
+                   FIELDSET(LEGEND(current.plugin_social_auth.T('Add new logon')),
+                            form2,
+                            P(EM(current.plugin_social_auth.T('Or manually enter your OpenId:'))),
+                            form3))
+
+        return dict(form=form, enable_persona=use_persona())
 
     def navbar(self, prefix='Welcome', action=None,
                separators=(' [ ', ' | ', ' ] '), user_identifier=DEFAULT,
@@ -160,6 +173,8 @@ class SocialAuth(Auth):
             redirect(URL(r=request, args='login'))
         if args[0] == 'login':
             return self.social_login()
+        if args[0] == 'associations':
+            return self.associations()
         elif args[0] in ['logout', 'groups', 'profile']:
              return getattr(self, args[0])()
         else:
@@ -200,6 +215,28 @@ class W2pExceptionHandler(object):
     def get_redirect_uri(self):
         return self.strategy.setting('LOGIN_ERROR_URL') or current.strategy.session_get('next')
 
+class IS_ALLOWED_OPENID(object):
+    """
+    Validate if the supplied OpenID url is for an allowed provider.
+    Background:
+
+    Google OpenID should not be used with manual OpenID entry because
+    Google may use different ID's for different domains so it's not guaranteed to
+    always stay the same. If you want to use Google OpenId, use:
+    social.backends.google.GoogleOpenId (will use email as ID)
+
+    http://blog.stackoverflow.com/2010/04/openid-one-year-later/
+    http://blog.stackoverflow.com/2009/04/googles-openids-are-unique-per-domain/
+    """
+    def __init__(self, error_message='This OpenID provider is not allowed.'):
+        self.e = error_message
+    def __call__(self, value):
+        host = urlparse(value).hostname
+        error = None
+        if host in current.plugin_social_auth.plugin.SOCIAL_AUTH_DISALLOWED_OPENID_HOSTS:
+            error = self.e
+        return value, error
+
 def load_strategy(*args, **kwargs):
     return get_strategy(getattr(current.plugin_social_auth.plugin, setting_name('AUTHENTICATION_BACKENDS')),
                         'plugin_social_auth.w2p_strategy.W2PStrategy',
@@ -213,9 +250,17 @@ def strategy(redirect_uri=None):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            r = current.request
             uri = redirect_uri
-            backend = current.request.vars['backend']
-            current.strategy = load_strategy(request=current.request,
+            backend = r.vars.backend
+            association_id = r.vars.association_id
+
+            if association_id and not backend:
+                usa = UserSocialAuth.get_social_auth_for_user(association_id=association_id)
+                if usa and len(usa) > 0:
+                    backend = usa[0].provider
+
+            current.strategy = load_strategy(request=r,
                                              backend=backend,
                                              redirect_uri=url_for(uri, backend),
                                              *args, **kwargs)
@@ -246,6 +291,40 @@ def login_user(user):
     auth.log_event(auth.messages['login_log'], user)
 
     session.flash = auth.messages.logged_in
+
+@strategy(URL(args=['associations']))
+def _disconnect():
+    """Disconnects given backend from current logged in user."""
+    def on_disconnected(backend):
+        providers = current.plugin_social_auth.plugin.SOCIAL_AUTH_PROVIDERS
+        display_name = backend in providers and providers[backend]
+
+        current.plugin_social_auth.session.flash = \
+            '%s %s' % (current.plugin_social_auth.T('Removed logon: '), display_name or backend)
+
+    try:
+        return do_disconnect(current.strategy, get_current_user(),
+                             association_id=current.request.vars.association_id,
+                             on_disconnected=on_disconnected)
+    except Exception as e:
+        process_exception(e)
+
+@strategy(URL('plugin_social_auth', 'complete'))
+def _auth():
+    r = current.request
+
+    # Store "remember me" value in session
+    current.strategy.session_set('remember', r.vars.get('remember', False))
+
+    if r.vars.backend == 'persona':
+        # Mozilla Persona
+        if r.vars.assertion == '': del r.vars.assertion
+        redirect(URL(f='complete', args=['persona'], vars=r.vars))
+    else:
+        try:
+            return do_auth(current.strategy)
+        except Exception as e:
+            process_exception(e)
 
 def module_member(name):
     mod, member = name.rsplit('.', 1)
@@ -285,6 +364,10 @@ def disconnect(strategy, entries, user_storage, on_disconnected=None,  *args, **
 def associate_user(strategy, uid, user=None, social=None, *args, **kwargs):
     assoc = assoc_user(strategy, uid, user=user, social=social, *args, **kwargs)
     if assoc:
+        providers = strategy.get_setting('SOCIAL_AUTH_PROVIDERS')
+        key = strategy.backend.name
+        display_name = key in providers and providers[key]
+
         current.plugin_social_auth.session.flash = '%s %s' % \
-                (current.plugin_social_auth.T('Added logon: '), strategy.backend.name)
+                (current.plugin_social_auth.T('Added logon: '), display_name or key)
     return assoc

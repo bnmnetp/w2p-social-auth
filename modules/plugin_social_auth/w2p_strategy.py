@@ -52,7 +52,6 @@ class W2PStrategy(BaseStrategy):
 
     def html(self, content):
         """Return HTTP response with given content"""
-        #FIXME Don't know yet what to do with this
         return content
 
     def render_html(self, tpl=None, html=None, context=None):
