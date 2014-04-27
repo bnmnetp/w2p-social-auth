@@ -12,18 +12,44 @@ from gluon.http import HTTP, redirect
 from gluon.globals import current
 from gluon.tools import Auth
 from gluon.validators import IS_URL
+from gluon.utils import web2py_uuid
 from urlparse import urlparse
 
-def needs_login(f):
-    def wrapper(*args):
-        selv = args[0]
-        r = selv.environment.request
-        if not selv.is_logged_in():
-            nextt = URL(r=r, args=r.args)
-            redirect(URL(args=['login'], vars={'_next': nextt}),
-                     client_side=selv.settings.client_side)
-        return f(*args)
+def internal(f):
+    """
+    Decorator to use on functions that should only be called using "app internal" redirects.
+    Must be used in combination with redirect_internal():
+
+    redirect_internal(f='user', args=['confirm'], vars={'backend': r.vars.backend})
+
+    """
+
+    def wrapper(*args, **kwargs):
+        s = current.plugin_social_auth.s
+        v = current.request.vars
+        req_uuid = None
+        if 'req_uuid' in s:
+            req_uuid = s.pop('req_uuid')
+        if (not req_uuid) or (not 'req_uuid' in v) or req_uuid != v.req_uuid:
+            raise HTTP(400)
+        return f(*args, **kwargs)
     return wrapper
+
+def redirect_internal(*args, **kwargs):
+    """
+    Redirect function to be used in combination with @internal decorator.
+    Adds a uuid to session and URL vars which the decorator then
+    validates after the redirect.
+    Must be called with args/kwargs that are normally passed to URL().
+
+    """
+
+    uuid = web2py_uuid()
+    current.plugin_social_auth.s.req_uuid = uuid
+    varz = kwargs.get('vars', {})
+    varz['req_uuid'] = uuid
+    kwargs['vars'] = varz
+    redirect(URL(*args, **kwargs))
 
 DEFAULT = lambda: None
 class SocialAuth(Auth):
@@ -71,6 +97,17 @@ class SocialAuth(Auth):
     def __init__(self, environment):
         Auth.__init__(self, environment, db=None, controller='plugin_social_auth')
         self.messages.update(confirm = self._default_confirm_message)
+
+    def needs_login(f):
+        def wrapper(*args):
+            selv = args[0]
+            r = selv.environment.request
+            if not selv.is_logged_in():
+                nextt = URL(r=r, args=r.args)
+                redirect(URL(args=['login'], vars={'_next': nextt}),
+                         client_side=selv.settings.client_side)
+            return f(*args)
+        return wrapper
 
     @staticmethod
     def get_backends():
@@ -170,6 +207,7 @@ class SocialAuth(Auth):
                     DIV(INPUT(_value=T('Register'), _type='submit'),
                         A(INPUT(_type='button' ,_value=T('Cancel')), _href=URL(f='user'))))
 
+    @internal
     def confirm(self):
         # Hide auth navbar
         self.navbar = lambda **x: ''

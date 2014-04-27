@@ -1,8 +1,7 @@
 from plugin_social_auth.social.pipeline.social_auth import associate_user as assoc_user
 from functools import wraps
 from gluon.globals import current
-from gluon.http import redirect
-from gluon.html import URL
+from utils import redirect_internal
 
 def partial(func):
     @wraps(func)
@@ -42,5 +41,5 @@ def confirm_new_user(strategy, pipeline_index, user=None, *args, **kwargs):
     strategy.session_set('confirm', r.vars)
 
     if user is None:
-        return redirect(URL(f='user', args=['confirm'], vars={'backend': r._vars.backend}))
+        return redirect_internal(f='user', args=['confirm'], vars={'backend': r.vars.backend})
 
