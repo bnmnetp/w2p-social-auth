@@ -47,7 +47,6 @@ class W2PStrategy(BaseStrategy):
 
     def redirect(self, url):
         """Return a response redirect to the given URL"""
-        # raise HTTP(302, Location=url, cookies=self.reresponse.cookies)
         return redirect(url)
 
     def html(self, content):

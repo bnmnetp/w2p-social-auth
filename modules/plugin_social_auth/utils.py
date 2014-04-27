@@ -4,7 +4,6 @@ from plugin_social_auth.social.utils import setting_name
 from plugin_social_auth.social.backends.utils import load_backends
 from plugin_social_auth.social.exceptions import SocialAuthBaseException
 from plugin_social_auth.social.actions import do_disconnect, do_auth
-from plugin_social_auth.social.pipeline.social_auth import associate_user as assoc_user
 from plugin_social_auth.models import UserSocialAuth
 from models import User
 from functools import wraps
@@ -15,10 +14,63 @@ from gluon.tools import Auth
 from gluon.validators import IS_URL
 from urlparse import urlparse
 
+def needs_login(f):
+    def wrapper(*args):
+        selv = args[0]
+        r = selv.environment.request
+        if not selv.is_logged_in():
+            nextt = URL(r=r, args=r.args)
+            redirect(URL(args=['login'], vars={'_next': nextt}),
+                     client_side=selv.settings.client_side)
+        return f(*args)
+    return wrapper
+
 DEFAULT = lambda: None
 class SocialAuth(Auth):
+    """
+    Subclass of Auth for authentication using python-social-auth.
+
+    Includes:
+
+    - registration and profile
+    - login and logout
+    - manage social account associations
+    - confirmation for new accounts
+
+    Authentication Example:
+
+        auth=SocialAuth(db)
+
+        # Enable the "username" field
+        auth.define_tables(username=True)
+
+        # Disable certain auth actions unless you're also using web2py account registration
+        auth.settings.actions_disabled = ['register', 'change_password', 'request_reset_password']
+
+        # Redirect to the same page after logout
+        auth.settings.logout_next = URL(args=request.args,
+                                        vars=request.get_vars)
+
+    exposes:
+
+    - http://.../{application}/{controller}/{function}/login
+    - http://.../{application}/{controller}/{function}/logout
+    - http://.../{application}/{controller}/{function}/profile
+    - http://.../{application}/{controller}/{function}/associations
+
+    # Used internally by auth pipeline
+    - http://.../{application}/{controller}/{function}/confirm
+
+    Other options:
+
+        Change new account confirm message:
+
+        auth.messages.confirm = "Are you sure you want to create a new account"
+    """
+
     def __init__(self, environment):
         Auth.__init__(self, environment, db=None, controller='plugin_social_auth')
+        self.messages.update(confirm = self._default_confirm_message)
 
     @staticmethod
     def get_backends():
@@ -97,6 +149,41 @@ class SocialAuth(Auth):
 
         return form
 
+    def _default_confirm_message(self, backend_name):
+        T = current.plugin_social_auth.T
+        backend = {'backend': backend_name}
+        return DIV(P(H3(T('Are you a new user?'))),
+                P(T('Please click "Register" to create an new account using %(backend)s' % backend)),
+                P(H3(T('Are you an existing user?'))),
+                P(T('Are you sure you want to create a new account? If you want to add %(backend)s login to your existing account:' % backend),
+                    OL(LI(T('Click "Cancel"')),
+                       LI(T('Login using a previously used social account')),
+                       LI(T('Add %(backend)s to your logins' % backend))),
+                    T('If you click "Register", a new account will be created with %(backend)s as login' % backend)),
+                _class="alert")
+
+    def confirm_form(self, backend_name):
+        T = current.plugin_social_auth.T
+        msg = self.messages.confirm
+        return FORM(msg(backend_name) if callable(msg) else msg,
+                    INPUT(_type="hidden", _name="next", _value=self.get_vars_next()),
+                    DIV(INPUT(_value=T('Register'), _type='submit'),
+                        A(INPUT(_type='button' ,_value=T('Cancel')), _href=URL(f='user'))))
+
+    def confirm(self):
+        # Hide auth navbar
+        self.navbar = lambda **x: ''
+
+        form = self.confirm_form(SocialAuth.get_providers()[current.request.vars.backend])
+
+        if form.process().accepted:
+            # Get vars back from session and delete them
+            varz = current.plugin_social_auth.s.pop('confirm', {})
+
+            return redirect(URL(f='complete', args=['confirmed'], vars=varz))
+
+        return current.response.render(dict(form=form))
+
     def social_login(self, next=DEFAULT):
         # Hide auth navbar
         self.navbar = lambda **x: ''
@@ -111,28 +198,25 @@ class SocialAuth(Auth):
                              form1,
                              P(EM(current.plugin_social_auth.T('Or manually enter your OpenId:'))),
                              form2),
-                    enable_persona=use_persona())
+                    enable_persona=current.plugin_social_auth.plugin.SOCIAL_AUTH_ENABLE_PERSONA)
 
+    @needs_login
     def associations(self):
         """Shows form to manage social account associations."""
-        next = URL(args=['associations'])
-
-        if not self.is_logged_in():
-            redirect(URL(args=['login'], vars={'_next':next}),
-                     client_side=self.settings.client_side)
+        nextt = URL(args=['associations'])
 
         usas = UserSocialAuth.get_social_auth_for_user(get_current_user())
         providers = SocialAuth.get_providers()
 
-        form1 = self.disconnect_form(usas=usas, providers=providers, next=next)
+        form1 = self.disconnect_form(usas=usas, providers=providers, next=nextt)
 
         backends = [backend for backend in SocialAuth.get_backends().keys() if
                     backend not in [x.provider for x in usas] and backend in providers]
 
-        form2 = self.dropdown_form(next=next, button_label=current.plugin_social_auth.T("Connect"),
+        form2 = self.dropdown_form(next=nextt, button_label=current.plugin_social_auth.T("Connect"),
                                    backends=backends)
 
-        form3 = self.openid_form(next=next)
+        form3 = self.openid_form(next=nextt)
 
         if form1.process(formname='form_one').accepted:
             return _disconnect()
@@ -146,7 +230,11 @@ class SocialAuth(Auth):
                             P(EM(current.plugin_social_auth.T('Or manually enter your OpenId:'))),
                             form3))
 
-        return dict(form=form, enable_persona=use_persona())
+        return dict(form=form, enable_persona=current.plugin_social_auth.plugin.SOCIAL_AUTH_ENABLE_PERSONA)
+
+    @needs_login
+    def profile(self, *args, **kwargs):
+        return super(SocialAuth, self).profile(*args, **kwargs)
 
     def navbar(self, prefix='Welcome', action=None,
                separators=(' [ ', ' | ', ' ] '), user_identifier=DEFAULT,
@@ -173,10 +261,12 @@ class SocialAuth(Auth):
             redirect(URL(r=request, args='login'))
         if args[0] == 'login':
             return self.social_login()
-        if args[0] == 'associations':
-            return self.associations()
-        elif args[0] in ['logout', 'groups', 'profile']:
-             return getattr(self, args[0])()
+        if args[0] == 'logout':
+            return self.logout()
+        if args[0] == 'confirm':
+            return self.confirm()
+        elif args[0] in ['logout', 'associations', 'confirm', 'profile']:
+            return getattr(self, args[0])()
         else:
             raise HTTP(404)
 
@@ -352,22 +442,3 @@ def process_exception(exception):
             handler.process_exception(exception)
         else:
             raise
-
-def use_persona():
-    return current.plugin_social_auth.plugin.SOCIAL_AUTH_ENABLE_PERSONA
-
-# Custom  pipeline functions
-def disconnect(strategy, entries, user_storage, on_disconnected=None,  *args, **kwargs):
-    for entry in entries:
-        user_storage.disconnect(entry, on_disconnected)
-
-def associate_user(strategy, uid, user=None, social=None, *args, **kwargs):
-    assoc = assoc_user(strategy, uid, user=user, social=social, *args, **kwargs)
-    if assoc:
-        providers = strategy.get_setting('SOCIAL_AUTH_PROVIDERS')
-        key = strategy.backend.name
-        display_name = key in providers and providers[key]
-
-        current.plugin_social_auth.session.flash = '%s %s' % \
-                (current.plugin_social_auth.T('Added logon: '), display_name or key)
-    return assoc

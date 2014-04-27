@@ -27,11 +27,28 @@ db.define_table('plugin_social_auth_association',
 _defaults = {'SOCIAL_AUTH_USER_MODEL': 'User',
              'SOCIAL_AUTH_USER_FIELDS': ['first_name', 'last_name', 'username', 'email'],
              'SOCIAL_AUTH_EXCEPTION_HANDLER' : 'plugin_social_auth.utils.W2pExceptionHandler',
-             'SOCIAL_AUTH_PIPELINE': tuple([x.replace('social.pipeline.social_auth.associate_user',
-                                                      'plugin_social_auth.utils.associate_user') for x in DEFAULT_AUTH_PIPELINE]),
-             'SOCIAL_AUTH_DISCONNECT_PIPELINE': tuple([x.replace('social.pipeline.disconnect.disconnect',
-                                                      'plugin_social_auth.utils.disconnect') for x in DEFAULT_DISCONNECT_PIPELINE]),
+
+             'SOCIAL_AUTH_PIPELINE':(
+                'plugin_social_auth.pipeline.clean_confirm_session',
+                'social.pipeline.social_auth.social_details',
+                'social.pipeline.social_auth.social_uid',
+                'social.pipeline.social_auth.auth_allowed',
+                'social.pipeline.social_auth.social_user',
+                'plugin_social_auth.pipeline.confirm_new_user',
+                'social.pipeline.user.get_username',
+                'social.pipeline.user.create_user',
+                'plugin_social_auth.pipeline.associate_user',
+                'social.pipeline.social_auth.load_extra_data',
+                'social.pipeline.user.user_details'),
+
+             'SOCIAL_AUTH_DISCONNECT_PIPELINE': (
+                'social.pipeline.disconnect.allowed_to_disconnect',
+                'social.pipeline.disconnect.get_entries',
+                'social.pipeline.disconnect.revoke_tokens',
+                'plugin_social_auth.pipeline.disconnect'),
+
              'SOCIAL_AUTH_ENABLE_PERSONA': False,
+             'SOCIAL_AUTH_CONFIRM_NEW_USER': False,
              'SOCIAL_AUTH_PROVIDERS': {},
 
              # Google OpenID should not be used with manual OpenID entry because
