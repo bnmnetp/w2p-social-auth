@@ -1,4 +1,6 @@
 import logging
+import cgi
+import urllib
 from plugin_social_auth.social.strategies.utils import get_strategy
 from plugin_social_auth.social.utils import setting_name
 from plugin_social_auth.social.backends.utils import load_backends
@@ -13,33 +15,37 @@ from gluon.globals import current
 from gluon.tools import Auth
 from gluon.validators import IS_URL
 from gluon.utils import web2py_uuid
-from urlparse import urlparse
+from urlparse import parse_qs, urlparse, urlunparse
 
-def internal(f):
+def verify(f):
     """
-    Decorator to use on functions that should only be called using "app internal" redirects.
-    Must be used in combination with redirect_internal():
+    Decorator to use on functions that should only be called using "verified" redirects.
+    Must be used in combination with verifiable_redirect():
 
-    redirect_internal(f='user', args=['confirm'], vars={'backend': r.vars.backend})
+    verifiable_redirect(f='user', args=['confirm'], vars={'backend': r.vars.backend})
 
     """
 
     def wrapper(*args, **kwargs):
+        req = current.request
         s = current.plugin_social_auth.s
-        v = current.request.vars
-        req_uuid = None
+        r = req.get_vars
+        req_uuid_s, req_uuid_r = None , None
+
         if 'req_uuid' in s:
-            req_uuid = s.pop('req_uuid')
-        if (not req_uuid) or (not 'req_uuid' in v) or req_uuid != v.req_uuid:
-            raise HTTP(400)
-        return f(*args, **kwargs)
+            req_uuid_s = s.pop('req_uuid')
+        if 'req_uuid' in r:
+            req_uuid_r = r.pop('req_uuid')
+
+        verified = req_uuid_s and req_uuid_r and (req_uuid_s == req_uuid_r)
+        return f(verified=verified, *args, **kwargs)
     return wrapper
 
-def redirect_internal(*args, **kwargs):
+def verifiable_redirect(*args, **kwargs):
     """
-    Redirect function to be used in combination with @internal decorator.
+    Redirect function to be used in combination with @verify decorator.
     Adds a uuid to session and URL vars which the decorator then
-    validates after the redirect.
+    verifies after the redirect.
     Must be called with args/kwargs that are normally passed to URL().
 
     """
@@ -202,23 +208,34 @@ class SocialAuth(Auth):
     def confirm_form(self, backend_name):
         T = current.plugin_social_auth.T
         msg = self.messages.confirm
+
         return FORM(msg(backend_name) if callable(msg) else msg,
                     INPUT(_type="hidden", _name="next", _value=self.get_vars_next()),
                     DIV(INPUT(_value=T('Register'), _type='submit'),
                         A(INPUT(_type='button' ,_value=T('Cancel')), _href=URL(f='user'))))
 
-    @internal
-    def confirm(self):
+    @verify
+    def confirm(self, verified=False):
         # Hide auth navbar
         self.navbar = lambda **x: ''
 
-        form = self.confirm_form(SocialAuth.get_providers()[current.request.vars.backend])
+        backend = current.request.vars.backend
 
+        if not backend:
+            raise HTTP(400)
+
+        form = self.confirm_form(SocialAuth.get_providers()[backend])
+
+        # Allow requests that use  form
         if form.process().accepted:
             # Get vars back from session and delete them
             varz = current.plugin_social_auth.s.pop('confirm', {})
 
             return redirect(URL(f='complete', args=['confirmed'], vars=varz))
+
+        # Deny request that do not use form and are not verified as app redirects
+        if not verified:
+            raise HTTP(400)
 
         return current.response.render(dict(form=form))
 
