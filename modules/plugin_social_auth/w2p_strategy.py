@@ -41,7 +41,7 @@ class W2PStrategy(BaseStrategy):
     def get_setting(self, name):
         """Return value for given setting name"""
         value = getattr(self.plugin, name)
-        if value:
+        if not value is None:
             return value
         raise AttributeError()
 

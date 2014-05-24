@@ -1,0 +1,10 @@
+syntax: glob
+errors/
+modules/oauthlib/
+modules/openid/
+modules/requests/
+sessions/
+modules/oauth2/
+modules/requests_oauthlib/
+modules/six.py
+models/0_settings.py

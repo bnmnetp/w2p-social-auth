@@ -349,7 +349,7 @@ class W2pExceptionHandler(object):
 
             logging.error("[social_auth] backend: %s | message: %s" % (backend_name, message))
 
-            current.newsranx.session.flash = message
+            current.plugin_social_auth.session.flash = message
             redirect(self.get_redirect_uri())
         else:
             raise
