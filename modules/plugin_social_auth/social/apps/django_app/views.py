@@ -31,11 +31,8 @@ def disconnect(request, backend, association_id=None):
                          redirect_name=REDIRECT_FIELD_NAME)
 
 
-def _do_login(strategy, user):
+def _do_login(strategy, user, social_user):
     login(strategy.request, user)
-    # user.social_user is the used UserSocialAuth instance defined in
-    # authenticate process
-    social_user = user.social_user
     if strategy.setting('SESSION_EXPIRATION', True):
         # Set session expiration date if present and not disabled
         # by setting. Use last social-auth instance for current

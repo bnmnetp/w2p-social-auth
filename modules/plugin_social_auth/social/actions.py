@@ -58,14 +58,15 @@ def do_complete(strategy, login, user=None, redirect_name='next',
             # catch is_new/social_user in case login() resets the instance
             is_new = getattr(user, 'is_new', False)
             social_user = user.social_user
-            login(strategy, user)
+            login(strategy, user, social_user)
             # store last login backend name in session
             strategy.session_set('social_auth_last_login_backend',
                                  social_user.provider)
 
             if is_new:
-                url = setting_url(strategy, redirect_value,
+                url = setting_url(strategy,
                                   'NEW_USER_REDIRECT_URL',
+                                  redirect_value,
                                   'LOGIN_REDIRECT_URL')
             else:
                 url = setting_url(strategy, redirect_value,
@@ -92,8 +93,9 @@ def do_disconnect(strategy, user, association_id=None, redirect_name='next',
     partial = partial_pipeline_data(strategy, user, *args, **kwargs)
     if partial:
         xargs, xkwargs = partial
-        response = strategy.disconnect(association_id=association_id,
-                                       *xargs, **xkwargs)
+        if association_id and not xkwargs.get('association_id'):
+            xkwargs['association_id'] = association_id
+        response = strategy.disconnect(*xargs, **xkwargs)
     else:
         response = strategy.disconnect(user=user,
                                        association_id=association_id,
