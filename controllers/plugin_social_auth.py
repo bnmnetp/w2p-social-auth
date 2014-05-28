@@ -10,7 +10,7 @@ def complete():
 
     try:
         return do_complete(current.strategy,
-                           login=lambda strat, user: login_user(user.row),
+                           login=lambda strat, user, social_user: login_user(user.row),
                            user=get_current_user())
     except Exception as e:
         process_exception(e)
