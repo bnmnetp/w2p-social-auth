@@ -23,6 +23,4 @@ def index():
     index_url = plugins.social_auth.get('SOCIAL_AUTH_APP_INDEX_URL', None)
     if index_url:
         redirect(index_url)
-    else:
-        redirect('user')
 

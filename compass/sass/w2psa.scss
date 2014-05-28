@@ -1,0 +1,77 @@
+@import "compass/css3/border-radius";
+
+@mixin button-variant($color, $background, $border) {
+  color: $color;
+  background-color: $background;
+  border-color: $border;
+  background-image: none;
+  &:hover,
+  &:focus,
+  &:active {
+    color: $color;
+    background-color: darken($background, 8%);
+        border-color: darken($border, 12%);
+  }
+}
+
+@mixin btn-social($color-bg, $color: #fff) {
+  background-color: $color-bg;
+  @include button-variant($color, $color-bg, rgba(0,0,0,.2));
+}
+
+.w2psa-button {
+  // Default style when no bootstrap and no specific style for this provider
+  @include btn-social(#808080);
+  @include border-radius(4px, 4px);
+  cursor: pointer;
+  &:hover {
+    text-decoration: none;
+  }
+
+  width: 200px;
+  margin-top: 5px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  display: block;
+  position: relative;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w2psa-icon {
+  padding-left: 35px;
+
+  :first-child {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 30px;
+    line-height: 35px;
+    font-size: 1.6em;
+    text-align: center;
+    border-right: 1px solid rgba(0, 0, 0, 0.2);
+  }
+}
+
+.w2psa-adn           { @include btn-social(#d87a68); }
+.w2psa-bitbucket     { @include btn-social(#205081); }
+.w2psa-dropbox       { @include btn-social(#1087dd); }
+.w2psa-facebook      { @include btn-social(#3b5998); }
+.w2psa-flickr        { @include btn-social(#ff0084); }
+.w2psa-foursquare    { @include btn-social(#0072b1); }
+.w2psa-github        { @include btn-social(#444444); }
+.w2psa-google-plus   { @include btn-social(#dd4b39); }
+.w2psa-instagram     { @include btn-social(#3f729b); }
+.w2psa-linkedin      { @include btn-social(#007bb6); }
+.w2psa-live          { @include btn-social(#0072C6); }
+.w2psa-persona       { @include btn-social(#D14826); }
+.w2psa-reddit        { @include btn-social(#eff7ff, #000); }
+.w2psa-soundcloud    { @include btn-social(#ff5500); }
+.w2psa-tumblr        { @include btn-social(#2c4762); }
+.w2psa-twitter       { @include btn-social(#55acee); }
+.w2psa-vimeo         { @include btn-social(#1ab7ea); }
+.w2psa-vk            { @include btn-social(#587ea3); }
+.w2psa-yahoo         { @include btn-social(#720e9e); }

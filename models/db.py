@@ -17,13 +17,6 @@ auth.define_tables(username=True)
 # Disable certain auth actions unless you're also using web2py account registration
 auth.settings.actions_disabled = ['register', 'change_password', 'request_reset_password']
 
-# Configure where to redirect to after logout.
-# If you do not configure this, web2py by default redirects to the index action of the
-# controller configured for auth. If you are using {{{SocialAuth}}} unmodified, you will be
-# redirected to the index action of the plugin controller which will redirect to the login page OR
-# if you configure the setting SOCIAL_AUTH_APP_INDEX_URL, to you app index page.
-# auth.settings.logout_next = URL()
-
 # Make user props readonly since these will automatically be updated
 # when the user logs on with a new social account anyway.
 # NOTE: this fails when lazy tables used.
@@ -67,6 +60,24 @@ plugins.social_auth.SOCIAL_AUTH_PROVIDERS = {
     'facebook': 'Facebook',
     'persona': 'Mozilla Persona'}
 
+# Configure app index URL. This is where you are redirected after logon when
+# auth.settings.logout_next is not configured.
+# If both are not configured there may be no redirection after logout! (returns 'None')
+plugins.social_auth.SOCIAL_AUTH_APP_INDEX_URL = URL('init', 'default', 'index')
+
 # Remove or set to False if you are not using Persona
 plugins.social_auth.SOCIAL_AUTH_ENABLE_PERSONA = True
+
+# w2p-social-auth can be configured to show a dropdown or buttons.
+# 'dropdown' does not require javascript (except for Persona backend) and
+# 'buttons' requires js and jquery to be loaded.
+# Uncomment this line to use dropdown in stead of the default buttons
+# plugins.social_auth.SOCIAL_AUTH_UI_STYLE = 'dropdown'
+
+# This setting only has effect when SOCIAL_AUTH_UI_STYLE = 'buttons'
+# Uuncomment this line to apply bootstrap styles to the buttons
+# plugins.social_auth.SOCIAL_AUTH_UI_BOOTSTRAP = False
+
+# Uncomment this line to remove icons from buttons
+# plugins.social_auth.SOCIAL_AUTH_UI_ICONS = False
 

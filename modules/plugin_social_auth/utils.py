@@ -1,6 +1,4 @@
 import logging
-import cgi
-import urllib
 from plugin_social_auth.social.strategies.utils import get_strategy
 from plugin_social_auth.social.utils import setting_name
 from plugin_social_auth.social.backends.utils import load_backends
@@ -15,7 +13,7 @@ from gluon.globals import current
 from gluon.tools import Auth
 from gluon.validators import IS_URL
 from gluon.utils import web2py_uuid
-from urlparse import parse_qs, urlparse, urlunparse
+from urlparse import urlparse
 
 def verify(f):
     """
@@ -102,7 +100,7 @@ class SocialAuth(Auth):
 
     def __init__(self, environment):
         Auth.__init__(self, environment, db=None, controller='plugin_social_auth')
-        self.messages.update(confirm = self._default_confirm_message)
+        self.messages.update(confirm=self.__default_confirm_message)
 
     def needs_login(f):
         def wrapper(*args):
@@ -114,31 +112,34 @@ class SocialAuth(Auth):
                          client_side=selv.settings.client_side)
             return f(*args)
         return wrapper
-
+    
     @staticmethod
-    def get_backends():
+    def __setting(name):
+        return current.plugin_social_auth.plugin.get(name, None)
+    
+    @staticmethod
+    def __get_backends():
         return load_backends(current.plugin_social_auth.plugin.SOCIAL_AUTH_AUTHENTICATION_BACKENDS)
 
     @staticmethod
-    def get_providers():
+    def __get_providers():
         return current.plugin_social_auth.plugin.SOCIAL_AUTH_PROVIDERS
 
     @staticmethod
-    def dropdown(backends):
-        providers = SocialAuth.get_providers()
+    def __dropdown(backends):
+        providers = SocialAuth.__get_providers()
         select = SELECT(_id='backend-select',_name='backend')
-        for backend in sorted(backends or SocialAuth.get_backends().keys()):
-            if backend in providers:
-                option = OPTION(providers[backend], _value=backend)
-                select.append(option)
-                # Persona required js. Hide it initially (to show it again using js)
-                if backend == 'persona':
-                    option['_id'] = "persona-option"
-                    option['_style'] = "display:none;"
+        for p in [(k, v) for k, v in providers.iteritems() if k in (backends or SocialAuth.__get_backends())]:
+            option = OPTION(p[1], _value=p[0])
+            select.append(option)
+            # Persona required js. Hide it initially (to show it again using js)
+            if p[0] == 'persona':
+                option['_id'] = "persona-option"
+                option['_style'] = "display:none;"
 
         return select
 
-    def remember_me_form(self):
+    def __remember_me_form(self):
         return DIV(XML("&nbsp;"),
                    INPUT(_type='checkbox',
                          _class='checkbox',
@@ -149,18 +150,63 @@ class SocialAuth(Auth):
                          _for="auth_user_remember",
                          _style="display: inline-block"))
 
-    def dropdown_form(self, backends=None, next=None, button_label=None):
-        return FORM((self.remember_me_form() if self.remember_me_form else ''),
-                    INPUT(_type='hidden', _name='next',_value=next or self.get_vars_next()),
+    def __dropdown_form(self, backends=None, _next=None, button_label=None):
+        return FORM((self.__remember_me_form() if self.__remember_me_form else ''),
+                    SCRIPT("""
+                           $(document).ready(function() {
+                               w2psa.init_dropdown();
+                           });
+                           """, _type='text/javascript'),
+                    INPUT(_type='hidden', _name='next',_value=_next or self.get_vars_next()),
                     INPUT(_type='hidden', _id='assertion', _name='assertion'), # Used for Mozilla Persona
-                    DIV(SocialAuth.dropdown(backends),
+                    DIV(SocialAuth.__dropdown(backends),
                         DIV(INPUT(_value=button_label or current.plugin_social_auth.T(self.messages.login_button), _type='submit'))),
                     _id='social_dropdown_form')
 
-    def openid_form(self, next=None):
-        return FORM((self.remember_me_form() if self.remember_me_form else ''),
+    def __button(self, provider):
+        T = current.plugin_social_auth.T
+
+        msg = T('Log in using %s' % provider[1])
+
+        use_bs = self.__setting('SOCIAL_AUTH_UI_BOOTSTRAP')
+
+        attrs = dict(_class='w2psa-button w2psa-%s%s%s' %
+                            (provider[0],
+                            (' btn btn-primary' if use_bs else ''),
+                            (' w2psa-icon' if self.__setting('SOCIAL_AUTH_UI_ICONS') else '')),
+                     **{'_data-provider': provider[0]})
+
+        button = Anr(I(_class='fa fa-%s' % provider[0]) if self.__setting('SOCIAL_AUTH_UI_ICONS') else '',
+                     msg,
+                     **attrs)
+
+        return button
+
+    def __button_form(self, backends=None, _next=None):
+        providers = SocialAuth.__get_providers()
+        backends = backends or self.__get_backends()
+        T = current.plugin_social_auth.T
+
+        return FORM(TAG['noscript'](DIV(P(I((T('Because JavaScript is disabled, you can only log in by entering your OpenID URL manually')))),
+                                        **(dict(_class='alert') if self.__setting('SOCIAL_AUTH_UI_BOOTSTRAP') else dict()))),
+                    (self.__remember_me_form() if self.__remember_me_form else ''),
+                    SCRIPT("""
+                           $(document).ready(function() {
+                               w2psa.init_buttons();
+                           });
+                           """, _type='text/javascript'),
+                    INPUT(_type='hidden', _name='next', _value=_next or self.get_vars_next()),
+                    INPUT(_type='hidden', _id='assertion', _name='assertion'), # Used for Mozilla Persona
+                    INPUT(_type='hidden', _id='backend', _name='backend'),
+                    DIV(P(H5('Log in using any of the following services:')),
+                        *[self.__button((k, v)) for k, v in providers.iteritems() if k in backends],
+                        _id='w2psa-buttons'),
+                    _id="social_button_form")
+
+    def __openid_form(self, _next=None):
+        return FORM((self.__remember_me_form() if self.__remember_me_form else ''),
                     INPUT(_type="hidden", _name="backend", _value="openid"),
-                    INPUT(_type="hidden", _name="next", _value=next or self.get_vars_next()),
+                    INPUT(_type="hidden", _name="next", _value=_next or self.get_vars_next()),
                     DIV(DIV(DIV(INPUT(_id="openid_identifier",
                                       _name="openid_identifier",
                                       _placeholder="Or, manually enter your OpenId",
@@ -170,14 +216,15 @@ class SocialAuth(Auth):
                         _id="openid_identifier_area"),
                     _id="social_openid_form")
 
-    def disconnect_form(self, next=None, usas=None, providers=None):
+    @staticmethod
+    def __disconnect_form(_next=None, usas=None, providers=None):
         usas = usas or UserSocialAuth.get_social_auth_for_user(get_current_user())
         usas_no_openid = [usa for usa in usas if usa.provider != 'openid']
-        providers = providers or SocialAuth.get_providers()
+        providers = providers or SocialAuth.__get_providers()
 
         # Add list with currently connected accounts
         form = FORM(SELECT(_name='association_id', _size=5),
-                    INPUT(_type="hidden", _name="next", _value=next),
+                    INPUT(_type="hidden", _name="next", _value=_next),
                     DIV(INPUT(_value='Disconnect', _type='submit') if len(usas) > 1 else ''))
 
         for usa in usas_no_openid:
@@ -192,7 +239,8 @@ class SocialAuth(Auth):
 
         return form
 
-    def _default_confirm_message(self, backend_name):
+    @staticmethod
+    def __default_confirm_message(backend_name):
         T = current.plugin_social_auth.T
         backend = {'backend': backend_name}
         return DIV(P(H3(T('Are you a new user?'))),
@@ -205,7 +253,7 @@ class SocialAuth(Auth):
                     T('If you click "Register", a new account will be created with %(backend)s as login' % backend)),
                 _class="alert")
 
-    def confirm_form(self, backend_name):
+    def __confirm_form(self, backend_name):
         T = current.plugin_social_auth.T
         msg = self.messages.confirm
 
@@ -215,7 +263,7 @@ class SocialAuth(Auth):
                         A(INPUT(_type='button' ,_value=T('Cancel')), _href=URL(f='user'))))
 
     @verify
-    def confirm(self, verified=False):
+    def __confirm(self, verified=False):
         # Hide auth navbar
         self.navbar = lambda **x: ''
 
@@ -224,7 +272,7 @@ class SocialAuth(Auth):
         if not backend:
             raise HTTP(400)
 
-        form = self.confirm_form(SocialAuth.get_providers()[backend])
+        form = self.__confirm_form(SocialAuth.__get_providers()[backend])
 
         # Allow requests that use  form
         if form.process().accepted:
@@ -239,12 +287,27 @@ class SocialAuth(Auth):
 
         return current.response.render(dict(form=form))
 
-    def social_login(self, next=DEFAULT):
+    def __add_static_files(self):
+        response = current.plugin_social_auth.response
+
+        # Persona js
+        if current.plugin_social_auth.plugin.SOCIAL_AUTH_ENABLE_PERSONA:
+            response.files.append("https://login.persona.org/include.js")
+
+        # Insert js and CSS
+        if self.__setting('SOCIAL_AUTH_UI_STYLE') == 'buttons':
+            response.files.append(URL('static', 'plugin_social_auth/css/w2psa.css'))
+            response.files.append("//netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css")
+            response.files.append(URL('static', 'plugin_social_auth/js/w2psa.js'))
+
+    def social_login(self, _next=DEFAULT):
         # Hide auth navbar
         self.navbar = lambda **x: ''
 
-        form1 = self.dropdown_form()
-        form2 = self.openid_form()
+        self.__add_static_files()
+
+        form1 = self.__button_form() if self.__setting('SOCIAL_AUTH_UI_STYLE') == 'buttons' else self.__dropdown_form()
+        form2 = self.__openid_form()
 
         if form1.process(formname='form_one').accepted or form2.process(formname='form_two').accepted:
             return _auth()
@@ -252,26 +315,31 @@ class SocialAuth(Auth):
         return dict(form=DIV(H4(current.plugin_social_auth.T('Choose your provider:')),
                              form1,
                              P(EM(current.plugin_social_auth.T('Or manually enter your OpenId:'))),
-                             form2),
-                    enable_persona=current.plugin_social_auth.plugin.SOCIAL_AUTH_ENABLE_PERSONA)
+                             form2))
 
     @needs_login
     def associations(self):
         """Shows form to manage social account associations."""
+
+        self.__add_static_files()
+
         nextt = URL(args=['associations'])
 
         usas = UserSocialAuth.get_social_auth_for_user(get_current_user())
-        providers = SocialAuth.get_providers()
+        providers = SocialAuth.__get_providers()
 
-        form1 = self.disconnect_form(usas=usas, providers=providers, next=nextt)
+        form1 = self.__disconnect_form(usas=usas, providers=providers, _next=nextt)
 
-        backends = [backend for backend in SocialAuth.get_backends().keys() if
+        backends = [backend for backend in SocialAuth.__get_backends().keys() if
                     backend not in [x.provider for x in usas] and backend in providers]
 
-        form2 = self.dropdown_form(next=nextt, button_label=current.plugin_social_auth.T("Connect"),
-                                   backends=backends)
+        if self.__setting('SOCIAL_AUTH_UI_STYLE') == 'buttons':
+            form2 = self.__button_form(_next=nextt, backends=backends)
+        else:
+            form2 = self.__dropdown_form(_next=nextt, button_label=current.plugin_social_auth.T("Connect"),
+                                         backends=backends)
 
-        form3 = self.openid_form(next=nextt)
+        form3 = self.__openid_form(_next=nextt)
 
         if form1.process(formname='form_one').accepted:
             return _disconnect()
@@ -285,7 +353,7 @@ class SocialAuth(Auth):
                             P(EM(current.plugin_social_auth.T('Or manually enter your OpenId:'))),
                             form3))
 
-        return dict(form=form, enable_persona=current.plugin_social_auth.plugin.SOCIAL_AUTH_ENABLE_PERSONA)
+        return dict(form=form)
 
     @needs_login
     def profile(self, *args, **kwargs):
@@ -319,7 +387,7 @@ class SocialAuth(Auth):
         if args[0] == 'logout':
             return self.logout()
         if args[0] == 'confirm':
-            return self.confirm()
+            return self.__confirm()
         elif args[0] in ['logout', 'associations', 'confirm', 'profile']:
             return getattr(self, args[0])()
         else:
@@ -335,7 +403,7 @@ class W2pExceptionHandler(object):
     """
     def process_exception(self, exception):
         self.strategy = current.strategy
-        if self.strategy is None or self.raise_exception():
+        if self.strategy is None or self.__raise_exception():
             raise
 
         #FIXME: workaround for issue:
@@ -350,14 +418,14 @@ class W2pExceptionHandler(object):
             logging.error("[social_auth] backend: %s | message: %s" % (backend_name, message))
 
             current.plugin_social_auth.session.flash = message
-            redirect(self.get_redirect_uri())
+            redirect(self.__get_redirect_uri())
         else:
             raise
 
-    def raise_exception(self):
+    def __raise_exception(self):
         return self.strategy.setting('RAISE_EXCEPTIONS')
 
-    def get_redirect_uri(self):
+    def __get_redirect_uri(self):
         return self.strategy.setting('LOGIN_ERROR_URL') or current.strategy.session_get('next')
 
 class IS_ALLOWED_OPENID(object):
@@ -381,6 +449,10 @@ class IS_ALLOWED_OPENID(object):
         if host in current.plugin_social_auth.plugin.SOCIAL_AUTH_DISALLOWED_OPENID_HOSTS:
             error = self.e
         return value, error
+
+def Anr(*a, **b):
+            b['_rel'] = 'nofollow'
+            return A(*a, **b)
 
 def load_strategy(*args, **kwargs):
     return get_strategy(getattr(current.plugin_social_auth.plugin, setting_name('AUTHENTICATION_BACKENDS')),

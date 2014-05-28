@@ -28,7 +28,7 @@ def associate_user(strategy, uid, user=None, social=None, *args, **kwargs):
 
 def clean_confirm_session(strategy, *args, **kwargs):
     if 'confirm' in strategy.session:
-        del strategy.session.confirm
+        del strategy.session.__confirm
 
 @partial
 def confirm_new_user(strategy, pipeline_index, user=None, *args, **kwargs):

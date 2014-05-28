@@ -1,9 +1,5 @@
 {{extend 'layout.html'}}
+
 <div id="social_auth_form">
     {{=form}}
 </div>
-
-<!-- Mozilla Persona BrowserID JavaScript -->
-{{if response._vars.get('enable_persona', False):}}
-    {{include 'plugin_social_auth/persona.html'}}
-{{pass}}

@@ -1,5 +1,3 @@
-from json import loads, dumps
-from plugin_social_auth.social.pipeline import DEFAULT_AUTH_PIPELINE, DEFAULT_DISCONNECT_PIPELINE
 from gluon.globals import current
 from gluon.storage import Storage
 
@@ -24,9 +22,10 @@ db.define_table('plugin_social_auth_association',
 
 _defaults = {'SOCIAL_AUTH_USER_MODEL': 'User',
              'SOCIAL_AUTH_USER_FIELDS': ['first_name', 'last_name', 'username', 'email'],
-             'SOCIAL_AUTH_EXCEPTION_HANDLER' : 'plugin_social_auth.utils.W2pExceptionHandler',
+             'SOCIAL_AUTH_EXCEPTION_HANDLER': 'plugin_social_auth.utils.W2pExceptionHandler',
+             'SOCIAL_AUTH_APP_INDEX_URL': None,
 
-             'SOCIAL_AUTH_PIPELINE':(
+             'SOCIAL_AUTH_PIPELINE': (
                 'plugin_social_auth.pipeline.clean_confirm_session',
                 'social.pipeline.social_auth.social_details',
                 'social.pipeline.social_auth.social_uid',
@@ -49,6 +48,10 @@ _defaults = {'SOCIAL_AUTH_USER_MODEL': 'User',
              'SOCIAL_AUTH_CONFIRM_NEW_USER': False,
              'SOCIAL_AUTH_PROVIDERS': {},
 
+             'SOCIAL_AUTH_UI_BOOTSTRAP': True,
+             'SOCIAL_AUTH_UI_STYLE': 'buttons',
+             'SOCIAL_AUTH_UI_ICONS': True,
+
              # Google OpenID should not be used with manual OpenID entry because
              # Google may use different ID's for different domains so it's not guaranteed to
              # always stay the same. If you want to use Google OpenId, use:
@@ -70,4 +73,5 @@ current.plugin_social_auth.auth = auth
 current.plugin_social_auth.db = db
 current.plugin_social_auth.T = T
 current.plugin_social_auth.plugin = _plugins.social_auth
+current.plugin_social_auth.response = response
 
