@@ -170,13 +170,15 @@ class SocialAuth(Auth):
 
         use_bs = self.__setting('SOCIAL_AUTH_UI_BOOTSTRAP')
 
+        provider_short = provider[0].split('-')[0]
+
         attrs = dict(_class='w2psa-button w2psa-%s%s%s' %
-                            (provider[0],
+                            (provider_short,
                             (' btn btn-primary' if use_bs else ''),
                             (' w2psa-icon' if self.__setting('SOCIAL_AUTH_UI_ICONS') else '')),
                      **{'_data-provider': provider[0]})
 
-        button = Anr(I(_class='fa fa-%s' % provider[0]) if self.__setting('SOCIAL_AUTH_UI_ICONS') else '',
+        button = Anr(I(_class='fa fa-%s' % provider_short) if self.__setting('SOCIAL_AUTH_UI_ICONS') else '',
                      msg,
                      **attrs)
 
